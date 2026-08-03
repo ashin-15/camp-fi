@@ -6,31 +6,25 @@ from ..keepalive import parse_keepalive
 
 class IIITKAdapter:
     def matches(self, html: str, url: str) -> bool:
-        # Match anything for now, or refine based on IIITK specific markers
         return True
         
     def prepare_login(self, client: httpx.Client, html: str, url: str) -> dict[str, Any]:
         form = parse_login_form(html, url)
         if not form:
             raise ValueError("No login form found")
-        return {
-            "form": form
-        }
+        return {"form": form}
         
     def submit_login(self, client: httpx.Client, prepared_data: dict[str, Any], username: str, password: str) -> httpx.Response:
         form = prepared_data["form"]
         data = form.inputs.copy()
-        if form.user_field:
-            data[form.user_field] = username
-        if form.pass_field:
-            data[form.pass_field] = password
+        if form.user_field: data[form.user_field] = username
+        if form.pass_field: data[form.pass_field] = password
             
         req = client.build_request(form.method, form.action, data=data)
-        resp = client.send(req)
-        return resp
+        return client.send(req)
         
-    def keepalive(self, client: httpx.Client, html: str, url: str) -> int | None:
+    def keepalive(self, client: httpx.Client, html: str, url: str) -> tuple[int | None, str | None]:
         ki = parse_keepalive(html, url)
         if ki:
-            return ki.interval
-        return None
+            return ki.interval, ki.url
+        return None, None

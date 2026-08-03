@@ -11,5 +11,5 @@ class PortalAdapter(Protocol):
     def submit_login(self, client: httpx.Client, prepared_data: dict[str, Any], username: str, password: str) -> httpx.Response:
         ...
         
-    def keepalive(self, client: httpx.Client, html: str, url: str) -> int | None:
+    def keepalive(self, client: httpx.Client, html: str, url: str) -> tuple[int | None, str | None]:
         ...

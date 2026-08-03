@@ -15,6 +15,7 @@ def run_daemon(foreground: bool = False):
     backoff = 5
     max_backoff = 300
     keepalive_interval = 300
+    keepalive_url = None
     last_keepalive_time = 0
     
     logger.info("Starting camp-fi daemon loop...")
@@ -48,9 +49,14 @@ def run_daemon(foreground: bool = False):
             backoff = 5
             now = time.time()
             if keepalive_interval and (now - last_keepalive_time) >= keepalive_interval:
-                logger.info("Keepalive triggered (via dummy probe/login update).")
-                # Usually keepalive means hitting a specific URL. 
-                # If we don't have it, we just sleep. The captive module can be expanded to return keepalive URL.
+                if keepalive_url:
+                    logger.info(f"Pinging keepalive URL: {keepalive_url}")
+                    try:
+                        import httpx
+                        with httpx.Client(verify=False) as c:
+                            c.get(keepalive_url, timeout=5.0)
+                    except Exception as e:
+                        logger.warning(f"Keepalive ping failed: {e}")
                 last_keepalive_time = now
             time.sleep(15)
             
@@ -58,13 +64,15 @@ def run_daemon(foreground: bool = False):
             logger.info(f"Captive portal detected at {probe.redirect_url}. Logging in...")
             cookies_path = get_cookie_path(active_profile_name)
             
-            success, new_interval = execute_login(probe.redirect_url, profile.username, password, cookies_path)
+            success, new_interval, new_url = execute_login(probe.redirect_url, profile.username, password, cookies_path)
             
             if success:
                 logger.info("Successfully authenticated.")
                 backoff = 5
                 if new_interval:
                     keepalive_interval = new_interval
+                if new_url:
+                    keepalive_url = new_url
                 last_keepalive_time = time.time()
             else:
                 logger.warning(f"Login failed. Backing off for {backoff} seconds.")

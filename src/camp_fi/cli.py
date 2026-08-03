@@ -34,6 +34,13 @@ def capture_har(har_path: Path, profile: str = typer.Option(..., help="Profile t
 
 @creds_app.command("set")
 def creds_set(profile: str, username: str, password: str = typer.Option(..., prompt=True, hide_input=True)):
+    import re
+    if profile == "iiitk":
+        if not re.match(r"^202[1-9](bc[a-z]|bec)[0-9]{4}$", username, re.IGNORECASE):
+            typer.echo(f"Warning: Username '{username}' does not match standard IIITK student ID format.", err=True)
+            if not typer.confirm("Do you want to continue anyway?"):
+                raise typer.Exit(1)
+    
     set_password(profile, username, password)
     config = load_config()
     if profile in config.profiles:

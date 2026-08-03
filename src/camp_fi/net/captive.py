@@ -6,11 +6,12 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from pathlib import Path
 from ..portals.iiitk import IIITKAdapter
+from ..portals.fortinet import FortinetAdapter
 from .probes import check_connectivity, ConnectivityStatus
 
 logger = logging.getLogger("camp-fi")
 
-ADAPTERS = [IIITKAdapter()]
+ADAPTERS = [FortinetAdapter(), IIITKAdapter()]
 
 def save_cookies(client: httpx.Client, path: Path):
     cookies = {cookie.name: cookie.value for cookie in client.cookies.jar}
@@ -24,7 +25,7 @@ def load_cookies(client: httpx.Client, path: Path, url: str):
             for k, v in cookies.items():
                 client.cookies.set(k, v, domain=httpx.URL(url).host)
 
-def execute_login(redirect_url: str, username: str, password: str, cookies_path: Path | None = None) -> tuple[bool, int | None]:
+def execute_login(redirect_url: str, username: str, password: str, cookies_path: Path | None = None) -> tuple[bool, int | None, str | None]:
     """Execute portal login sequence and return (success, keepalive_interval)."""
     with httpx.Client(follow_redirects=True, verify=False) as client:
         if cookies_path:
@@ -87,12 +88,12 @@ def execute_login(redirect_url: str, username: str, password: str, cookies_path:
             probe = check_connectivity()
             if probe.status == ConnectivityStatus.INTERNET:
                 logger.info("Login successful. Internet connectivity verified.")
-                keepalive_interval = adapter.keepalive(client, login_resp.text, str(login_resp.url))
-                return True, keepalive_interval
+                keepalive_interval, keepalive_url = adapter.keepalive(client, login_resp.text, str(login_resp.url))
+                return True, keepalive_interval, keepalive_url
             else:
                 logger.warning(f"Login submitted but no internet. Probe status: {probe.status}")
-                return False, None
+                return False, None, None
                 
         except Exception as e:
             logger.error(f"Login failed: {e}")
-            return False, None
+            return False, None, None
