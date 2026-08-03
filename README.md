@@ -22,7 +22,7 @@ You can install the tool using [`uv`](https://github.com/astral-sh/uv) (recommen
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/camp-fi.git
+git clone https://github.com/ashin-15/camp-fi.git
 cd camp-fi
 
 # Install globally using uv
