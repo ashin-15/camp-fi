@@ -19,3 +19,4 @@
 4. **Adapter Protocol**: Any new captive portal integrations MUST implement the full `PortalAdapter` protocol in `portals/base.py`.
 5. **Safe Logging**: The `RedactingFormatter` in `logging_config.py` attempts to scrub tokens, but you MUST avoid explicitly logging passwords or raw session tokens in newly added log statements.
 6. **Changelog**: All notable user-facing changes must be documented in `CHANGELOG.md` following the [Keep a Changelog](https://keepachangelog.com/) format.
+7. **Documentation Updates**: Whenever new CLI commands, options, features, or architectural improvements are added, `README.md` MUST be updated alongside the changes to maintain accurate documentation and CLI reference.

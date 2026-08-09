@@ -1,44 +1,80 @@
-import httpx
+from dataclasses import dataclass
 from enum import Enum, auto
+import httpx
+from .http_client import build_http_client
 
 class ConnectivityStatus(Enum):
     INTERNET = auto()
     CAPTIVE = auto()
     OFFLINE = auto()
+    UNKNOWN = auto()
 
-class ProbeResult:
-    def __init__(self, status: ConnectivityStatus, redirect_url: str | None = None, response: httpx.Response | None = None):
-        self.status = status
-        self.redirect_url = redirect_url
-        self.response = response
+@dataclass(frozen=True)
+class ProbeSpec:
+    name: str
+    url: str
+    success_status: int = 204
+    success_body: str | None = None
 
-    def __repr__(self):
-        return f"<ProbeResult status={self.status.name} redirect_url={self.redirect_url}>"
-
-PROBE_URLS = [
-    "http://connectivitycheck.gstatic.com/generate_204",
-    "http://cp.cloudflare.com/generate_204",
+PROBE_SPECS = [
+    ProbeSpec("Google", "http://connectivitycheck.gstatic.com/generate_204", 204),
+    ProbeSpec("Cloudflare", "http://cp.cloudflare.com/generate_204", 204),
+    ProbeSpec("Apple", "http://captive.apple.com/hotspot-detect.html", 200, "Success"),
+    ProbeSpec("Microsoft", "http://www.msftconnecttest.com/connecttest.txt", 200, "Microsoft Connect Test"),
+    ProbeSpec("Mozilla", "http://detectportal.firefox.com/success.txt", 200, "success"),
 ]
 
-def check_connectivity(timeout: float = 3.0) -> ProbeResult:
-    """Check network connectivity and classify status."""
-    url = PROBE_URLS[0]
-    
-    with httpx.Client(timeout=timeout, follow_redirects=False) as client:
-        try:
-            resp = client.get(url)
-            
-            if resp.status_code == 204:
-                return ProbeResult(ConnectivityStatus.INTERNET, response=resp)
-            
-            if 300 <= resp.status_code < 400 and "location" in resp.headers:
-                return ProbeResult(ConnectivityStatus.CAPTIVE, redirect_url=resp.headers["location"], response=resp)
-                
-            if resp.status_code == 200:
-                # Intercepted without redirect
-                return ProbeResult(ConnectivityStatus.CAPTIVE, redirect_url=url, response=resp)
-                
-        except httpx.RequestError:
-            return ProbeResult(ConnectivityStatus.OFFLINE)
-            
-    return ProbeResult(ConnectivityStatus.OFFLINE)
+# Kept for backward compatibility in tests that monkeypatch PROBE_URLS
+PROBE_URLS = [p.url for p in PROBE_SPECS]
+
+@dataclass(frozen=True)
+class ProbeResult:
+    status: ConnectivityStatus
+    probe_name: str | None = None
+    redirect_url: str | None = None
+    status_code: int | None = None
+
+def check_connectivity(timeout: float = 3.0, specs: list[ProbeSpec] | None = None) -> ProbeResult:
+    """Check network connectivity across standard probes and classify status."""
+    active_specs = specs or PROBE_SPECS
+
+    # Support monkeypatched PROBE_URLS if test overrides it
+    if PROBE_URLS and PROBE_URLS[0] != active_specs[0].url:
+        active_specs = [ProbeSpec("Custom", PROBE_URLS[0], 204)]
+
+    with build_http_client(timeout=timeout, follow_redirects=False) as client:
+        all_offline = True
+        for spec in active_specs:
+            try:
+                resp = client.get(spec.url)
+                all_offline = False
+
+                if 300 <= resp.status_code < 400 and "location" in resp.headers:
+                    return ProbeResult(
+                        status=ConnectivityStatus.CAPTIVE,
+                        probe_name=spec.name,
+                        redirect_url=resp.headers["location"],
+                        status_code=resp.status_code,
+                    )
+
+                if resp.status_code == spec.success_status:
+                    if spec.success_body is None or spec.success_body in resp.text:
+                        return ProbeResult(
+                            status=ConnectivityStatus.INTERNET,
+                            probe_name=spec.name,
+                            status_code=resp.status_code,
+                        )
+
+                # Intercepted HTML or unexpected status code
+                return ProbeResult(
+                    status=ConnectivityStatus.CAPTIVE,
+                    probe_name=spec.name,
+                    redirect_url=spec.url,
+                    status_code=resp.status_code,
+                )
+            except httpx.RequestError:
+                continue
+
+    if all_offline:
+        return ProbeResult(ConnectivityStatus.OFFLINE)
+    return ProbeResult(ConnectivityStatus.UNKNOWN)

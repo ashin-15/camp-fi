@@ -76,17 +76,32 @@ camp-fi service start
 
 ## CLI Reference
 
+### Operational & Diagnostics
+- `camp-fi init`: Run system initialization and environment capability checks.
+- `camp-fi status`: View current SSID, network status, configuration path, and active profile status.
+- `camp-fi login [--profile <name>]`: Perform a one-shot captive portal authentication attempt.
 - `camp-fi daemon [--foreground]`: Run the main event loop.
-- `camp-fi creds set <profile> <username>`: Securely store credentials for a profile.
+- `camp-fi inspect-har <har_path>`: Inspect a browser HAR export for login form patterns.
+
+### Profiles & Credentials
+- `camp-fi profile list`: List all configured profiles.
+- `camp-fi profile add <name>`: Create a new profile.
+- `camp-fi profile show <name>`: Display details for a specific profile.
+- `camp-fi creds set <profile> <username>`: Securely store credentials in OS keyring for a profile.
+- `camp-fi creds delete <profile>`: Delete stored credentials for a profile.
+
+### SSID Configuration
 - `camp-fi config ssids add --profile <profile> <ssid>`: Add an SSID to a profile.
 - `camp-fi config ssids remove --profile <profile> <ssid>`: Remove an SSID from a profile.
-- `camp-fi service install`: Generate, enable, and start the systemd unit.
+
+### Service Management
+- `camp-fi service install`: Generate, enable, and start the systemd `--user` unit.
 - `camp-fi service start`: Start the installed systemd unit.
 - `camp-fi service stop`: Stop the systemd unit.
-- `camp-fi capture-har <har_path> --profile <profile>`: Analyze a browser HAR export to detect complex login flows.
+- `camp-fi service restart`: Restart the systemd unit.
+- `camp-fi service uninstall`: Disable, stop, and remove the installed systemd unit.
 
 ## Development
-
 To hack on `camp-fi`, set up your virtual environment and run the test suite:
 
 ```bash

@@ -1,4 +1,8 @@
 from bs4 import BeautifulSoup
+import httpx
+from ..models import PreparedLogin, KeepaliveSpec
+from ..keepalive import parse_keepalive
+
 from urllib.parse import urljoin
 
 class FormInfo:
@@ -41,3 +45,31 @@ def parse_login_form(html: str, base_url: str) -> FormInfo | None:
             return FormInfo(action_url, method, inputs, user_field, pass_field)
             
     return None
+class GenericFormAdapter:
+    name = "generic_form"
+
+    def matches(self, html: str, url: str) -> bool:
+        return parse_login_form(html, url) is not None
+
+    def prepare_login(self, client: httpx.Client, html: str, url: str) -> PreparedLogin:
+        form = parse_login_form(html, url)
+        if not form:
+            raise ValueError("No login form found")
+        return PreparedLogin(data={"form": form})
+
+    def submit_login(self, client: httpx.Client, prepared: PreparedLogin, username: str, password: str) -> httpx.Response:
+        form = prepared.data["form"]
+        data = form.inputs.copy()
+        if form.user_field:
+            data[form.user_field] = username
+        if form.pass_field:
+            data[form.pass_field] = password
+
+        req = client.build_request(form.method, form.action, data=data)
+        return client.send(req)
+
+    def get_keepalive(self, client: httpx.Client, html: str, url: str) -> KeepaliveSpec | None:
+        ki = parse_keepalive(html, url)
+        if ki:
+            return KeepaliveSpec(url=ki.url, interval_seconds=ki.interval)
+        return None

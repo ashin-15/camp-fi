@@ -6,9 +6,9 @@ class RedactingFormatter(logging.Formatter):
         super().__init__(fmt)
         # Redact common sensitive patterns
         self.patterns = [
-            (re.compile(r"(password[=:]\s*)['\"]?[^\s'\"&]+['\"]?", re.IGNORECASE), r"\1***"),
-            (re.compile(r"(token[=:]\s*)['\"]?[^\s'\"&]+['\"]?", re.IGNORECASE), r"\1***"),
-            (re.compile(r"(cookie[=:]\s*)['\"]?[^\s'\"&]+['\"]?", re.IGNORECASE), r"\1***")
+            (re.compile(r"((?:password|passwd|pwd|token|magic|cookie|authorization|session|secret|bearer)[=:]\s*)['\"]?[^\s'\"&]+['\"]?", re.IGNORECASE), r"\1***"),
+            (re.compile(r"([?&](?:password|passwd|pwd|token|magic|cookie|authorization|session|secret)=)[^&\s]+", re.IGNORECASE), r"\1***"),
+            (re.compile(r"(Bearer\s+)[a-zA-Z0-9_\-\.]+", re.IGNORECASE), r"\1***"),
         ]
 
     def format(self, record):

@@ -118,19 +118,18 @@ def test_fake_portal_login(fake_server, monkeypatch, tmp_path):
     
     # 2. Execute login
     cookies_path = tmp_path / "cookies-test.json"
-    success, keepalive_interval = execute_login(
+    result = execute_login(
         redirect_url=probe.redirect_url,
         username="testuser",
         password="testpass",
         cookies_path=cookies_path
     )
     
-    assert success is True
-    assert keepalive_interval == 300
-    
-    # 3. Check if cookies were saved
+    assert result.succeeded is True
+    assert result.adapter_name == "generic_form"
+    assert result.keepalive is not None
+    assert result.keepalive.interval_seconds == 300
     assert cookies_path.exists()
     with cookies_path.open("r") as f:
         cookies = json.load(f)
-        assert "session" in cookies
-        assert cookies["session"] == "logged_in"
+        assert any(c.get("name") == "session" and c.get("value") == "logged_in" for c in cookies)

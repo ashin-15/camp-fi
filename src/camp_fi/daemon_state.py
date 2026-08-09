@@ -1,0 +1,36 @@
+from dataclasses import dataclass
+import time
+from .net.probes import ConnectivityStatus, ProbeResult
+from .models import LoginResult, KeepaliveSpec
+
+@dataclass
+class DaemonState:
+    active_profile: str | None = None
+    backoff_seconds: int = 5
+    max_backoff_seconds: int = 300
+    keepalive_interval: int | None = 300
+    keepalive_url: str | None = None
+    last_keepalive_time: float = 0
+    last_status: ConnectivityStatus | None = None
+
+    def reset_backoff(self):
+        self.backoff_seconds = 5
+
+    def increase_backoff(self):
+        self.backoff_seconds = min(self.backoff_seconds * 2, self.max_backoff_seconds)
+
+    def is_keepalive_due(self, now: float) -> bool:
+        if not self.keepalive_interval:
+            return False
+        return (now - self.last_keepalive_time) >= self.keepalive_interval
+
+    def update_from_login(self, result: LoginResult, now: float):
+        if result.succeeded:
+            self.reset_backoff()
+            if result.keepalive:
+                # Clamp keepalive interval between 45 and 3600 seconds
+                self.keepalive_interval = max(45, min(result.keepalive.interval_seconds, 3600))
+                self.keepalive_url = result.keepalive.url
+            self.last_keepalive_time = now
+        else:
+            self.increase_backoff()

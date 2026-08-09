@@ -1,26 +1,33 @@
 import time
+import signal
 import logging
 from .config import load_config
 from .credentials import get_password
 from .net.ssid import get_current_ssid
 from .net.probes import check_connectivity, ConnectivityStatus
 from .net.captive import execute_login
+from .net.http_client import build_http_client
 from .paths import get_cookie_path
+from .daemon_state import DaemonState
 
 logger = logging.getLogger("camp-fi")
 
 def run_daemon(foreground: bool = False):
     config = load_config()
-    
-    backoff = 5
-    max_backoff = 300
-    keepalive_interval = 300
-    keepalive_url = None
-    last_keepalive_time = 0
-    
+    state = DaemonState()
+    running = True
+
+    def stop_handler(signum, frame):
+        nonlocal running
+        logger.info(f"Received signal {signum}. Shutting down daemon...")
+        running = False
+
+    signal.signal(signal.SIGINT, stop_handler)
+    signal.signal(signal.SIGTERM, stop_handler)
+
     logger.info("Starting camp-fi daemon loop...")
-    
-    while True:
+
+    while running:
         ssid = get_current_ssid()
         if not ssid:
             time.sleep(10)
@@ -36,6 +43,7 @@ def run_daemon(foreground: bool = False):
             time.sleep(30)
             continue
             
+        state.active_profile = active_profile_name
         profile = config.profiles[active_profile_name]
         password = get_password(active_profile_name, profile.username)
         if not password:
@@ -44,40 +52,34 @@ def run_daemon(foreground: bool = False):
             continue
             
         probe = check_connectivity()
+        state.last_status = probe.status
+        now = time.time()
         
         if probe.status == ConnectivityStatus.INTERNET:
-            backoff = 5
-            now = time.time()
-            if keepalive_interval and (now - last_keepalive_time) >= keepalive_interval:
-                if keepalive_url:
-                    logger.info(f"Pinging keepalive URL: {keepalive_url}")
+            state.reset_backoff()
+            if state.is_keepalive_due(now):
+                if state.keepalive_url:
+                    logger.info(f"Pinging keepalive URL: {state.keepalive_url}")
                     try:
-                        import httpx
-                        with httpx.Client(verify=False) as c:
-                            c.get(keepalive_url, timeout=5.0)
+                        with build_http_client(timeout=5.0, follow_redirects=True) as c:
+                            c.get(state.keepalive_url)
                     except Exception as e:
                         logger.warning(f"Keepalive ping failed: {e}")
-                last_keepalive_time = now
+                state.last_keepalive_time = now
             time.sleep(15)
             
         elif probe.status == ConnectivityStatus.CAPTIVE:
             logger.info(f"Captive portal detected at {probe.redirect_url}. Logging in...")
             cookies_path = get_cookie_path(active_profile_name)
             
-            success, new_interval, new_url = execute_login(probe.redirect_url, profile.username, password, cookies_path)
+            login_result = execute_login(probe.redirect_url, profile.username, password, cookies_path)
+            state.update_from_login(login_result, now)
             
-            if success:
-                logger.info("Successfully authenticated.")
-                backoff = 5
-                if new_interval:
-                    keepalive_interval = new_interval
-                if new_url:
-                    keepalive_url = new_url
-                last_keepalive_time = time.time()
+            if login_result.succeeded:
+                logger.info(f"Successfully authenticated via adapter '{login_result.adapter_name}'.")
             else:
-                logger.warning(f"Login failed. Backing off for {backoff} seconds.")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, max_backoff)
+                logger.warning(f"Login failed ({login_result.message}). Backing off for {state.backoff_seconds} seconds.")
+                time.sleep(state.backoff_seconds)
                 
         else:
             time.sleep(10)

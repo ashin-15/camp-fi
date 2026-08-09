@@ -1,15 +1,18 @@
-from typing import Protocol, Any
+from typing import Protocol
 import httpx
+from ..models import PreparedLogin, KeepaliveSpec
 
 class PortalAdapter(Protocol):
+    name: str
+
     def matches(self, html: str, url: str) -> bool:
         ...
         
-    def prepare_login(self, client: httpx.Client, html: str, url: str) -> dict[str, Any]:
+    def prepare_login(self, client: httpx.Client, html: str, url: str) -> PreparedLogin:
         ...
         
-    def submit_login(self, client: httpx.Client, prepared_data: dict[str, Any], username: str, password: str) -> httpx.Response:
+    def submit_login(self, client: httpx.Client, prepared: PreparedLogin, username: str, password: str) -> httpx.Response:
         ...
         
-    def keepalive(self, client: httpx.Client, html: str, url: str) -> tuple[int | None, str | None]:
+    def get_keepalive(self, client: httpx.Client, html: str, url: str) -> KeepaliveSpec | None:
         ...
