@@ -1,6 +1,7 @@
 import time
 import signal
 import logging
+import threading
 from .config import load_config
 from .credentials import get_password
 from .net.ssid import get_current_ssid
@@ -12,25 +13,30 @@ from .daemon_state import DaemonState
 
 logger = logging.getLogger("camp-fi")
 
-def run_daemon(foreground: bool = False):
+def run_daemon(foreground: bool = False, stop_event: threading.Event | None = None):
     config = load_config()
     state = DaemonState()
-    running = True
+    if stop_event is None:
+        stop_event = threading.Event()
 
     def stop_handler(signum, frame):
-        nonlocal running
         logger.info(f"Received signal {signum}. Shutting down daemon...")
-        running = False
+        stop_event.set()
 
-    signal.signal(signal.SIGINT, stop_handler)
-    signal.signal(signal.SIGTERM, stop_handler)
+    try:
+        signal.signal(signal.SIGINT, stop_handler)
+        signal.signal(signal.SIGTERM, stop_handler)
+    except ValueError:
+        # Signals can only be set from the main thread
+        pass
 
     logger.info("Starting camp-fi daemon loop...")
 
-    while running:
+    while not stop_event.is_set():
         ssid = get_current_ssid()
         if not ssid:
-            time.sleep(10)
+            if stop_event.wait(10):
+                break
             continue
             
         active_profile_name = None
@@ -40,7 +46,8 @@ def run_daemon(foreground: bool = False):
                 break
                 
         if not active_profile_name:
-            time.sleep(30)
+            if stop_event.wait(30):
+                break
             continue
             
         state.active_profile = active_profile_name
@@ -48,7 +55,8 @@ def run_daemon(foreground: bool = False):
         password = get_password(active_profile_name, profile.username)
         if not password:
             logger.error(f"No password for profile '{active_profile_name}', user '{profile.username}'.")
-            time.sleep(60)
+            if stop_event.wait(60):
+                break
             continue
             
         probe = check_connectivity()
@@ -66,8 +74,8 @@ def run_daemon(foreground: bool = False):
                     except Exception as e:
                         logger.warning(f"Keepalive ping failed: {e}")
                 state.last_keepalive_time = now
-            time.sleep(15)
-            
+            if stop_event.wait(15):
+                break
         elif probe.status == ConnectivityStatus.CAPTIVE:
             logger.info(f"Captive portal detected at {probe.redirect_url}. Logging in...")
             cookies_path = get_cookie_path(active_profile_name)
@@ -79,7 +87,8 @@ def run_daemon(foreground: bool = False):
                 logger.info(f"Successfully authenticated via adapter '{login_result.adapter_name}'.")
             else:
                 logger.warning(f"Login failed ({login_result.message}). Backing off for {state.backoff_seconds} seconds.")
-                time.sleep(state.backoff_seconds)
-                
+                if stop_event.wait(state.backoff_seconds):
+                    break
         else:
-            time.sleep(10)
+            if stop_event.wait(10):
+                break
