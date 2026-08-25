@@ -12,12 +12,14 @@ app = typer.Typer(help="Wi-Fi Captive Portal Auto-Login Daemon")
 config_app = typer.Typer(help="Manage configuration")
 profile_app = typer.Typer(help="Manage profiles")
 ssids_app = typer.Typer(help="Manage SSIDs for a profile")
+keepalive_app = typer.Typer(help="Manage keepalive settings for a profile")
 creds_app = typer.Typer(help="Manage credentials for a profile")
 systemd_app = typer.Typer(help="Manage systemd service")
 
 app.add_typer(config_app, name="config")
 app.add_typer(profile_app, name="profile")
 config_app.add_typer(ssids_app, name="ssids")
+config_app.add_typer(keepalive_app, name="keepalive")
 app.add_typer(creds_app, name="creds")
 app.add_typer(systemd_app, name="service")
 @app.command("daemon")
@@ -65,9 +67,11 @@ def profile_show(name: str):
         raise typer.Exit(1)
     prof = config.profiles[name]
     typer.echo(f"Profile: {name}")
-    typer.echo(f"Username: {prof.username or 'Not set'}")
     typer.echo(f"SSIDs: {', '.join(prof.ssids) if prof.ssids else 'None'}")
-
+    if prof.keepalive_url:
+        typer.echo(f"Keepalive URL: {prof.keepalive_url}")
+    if prof.keepalive_interval_seconds is not None:
+        typer.echo(f"Keepalive Interval: {prof.keepalive_interval_seconds}s")
 @creds_app.command("set")
 def creds_set(profile: str, username: str, password: str = typer.Option(..., prompt=True, hide_input=True)):
     import re
@@ -146,6 +150,24 @@ def ssids_remove(profile: str = typer.Option(..., help="Profile name"), ssid: st
     else:
         typer.echo(f"SSID '{ssid}' not found in profile '{profile}'.")
 
+@keepalive_app.command("set")
+def keepalive_set(
+    profile: str = typer.Option(..., "--profile", "-p", help="Profile name"),
+    url: str | None = typer.Option(None, "--url", help="Manual keepalive URL"),
+    interval: int | None = typer.Option(None, "--interval", help="Manual keepalive interval in seconds"),
+):
+    config = load_config()
+    if profile not in config.profiles:
+        typer.echo(f"Profile '{profile}' not found.", err=True)
+        raise typer.Exit(1)
+
+    prof = config.profiles[profile]
+    if url is not None:
+        prof.keepalive_url = url
+    if interval is not None:
+        prof.keepalive_interval_seconds = interval
+    save_config(config)
+    typer.echo(f"Keepalive settings updated for profile '{profile}'.")
 @app.command("login")
 def login(profile: str = typer.Option(None, help="Profile to use (defaults to active SSID match)")):
     from .credentials import get_password

@@ -5,7 +5,8 @@ from .paths import get_config_path
 class ProfileConfig(BaseModel):
     ssids: list[str] = Field(default_factory=list)
     username: str = ""
-
+    keepalive_url: str | None = None
+    keepalive_interval_seconds: int | None = None
 class AppConfig(BaseModel):
     profiles: dict[str, ProfileConfig] = Field(
         default_factory=lambda: {"iiitk": ProfileConfig(ssids=["IIITKottayam", "IIITKottayam_5G"])}

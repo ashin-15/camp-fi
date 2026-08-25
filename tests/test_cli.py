@@ -51,3 +51,51 @@ def test_cli_history(tmp_path, monkeypatch):
 
     assert res.exit_code == 0
     assert "login_failed profile=iiitk adapter=test status=AUTH_FAILED bad pass" in res.output
+
+def test_cli_keepalive_set(tmp_path, monkeypatch):
+    monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
+    monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)
+
+    # Create a profile first
+    res = runner.invoke(app, ["profile", "add", "custom"])
+    assert res.exit_code == 0
+
+    # Set keepalive URL and interval
+    res = runner.invoke(
+        app,
+        [
+            "config",
+            "keepalive",
+            "set",
+            "--profile",
+            "custom",
+            "--url",
+            "http://10.0.0.1/ping",
+            "--interval",
+            "120",
+        ],
+    )
+    assert res.exit_code == 0
+    assert "Keepalive settings updated for profile 'custom'." in res.output
+
+    # Verify in profile show
+    res = runner.invoke(app, ["profile", "show", "custom"])
+    assert res.exit_code == 0
+    assert "Keepalive URL: http://10.0.0.1/ping" in res.output
+    assert "Keepalive Interval: 120s" in res.output
+
+    # Test non-existent profile
+    res = runner.invoke(
+        app,
+        [
+            "config",
+            "keepalive",
+            "set",
+            "--profile",
+            "nonexistent",
+            "--url",
+            "http://10.0.0.1/ping",
+        ],
+    )
+    assert res.exit_code != 0
+    assert "Profile 'nonexistent' not found." in res.output

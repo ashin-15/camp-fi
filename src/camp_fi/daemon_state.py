@@ -1,8 +1,12 @@
+from __future__ import annotations
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .models import LoginResult
 from .net.probes import ConnectivityStatus
 
+if TYPE_CHECKING:
+    from .config import ProfileConfig
 
 @dataclass
 class DaemonState:
@@ -28,13 +32,18 @@ class DaemonState:
             return False
         return (now - self.last_keepalive_time) >= self.keepalive_interval
 
-    def update_from_login(self, result: LoginResult, now: float):
+    def update_from_login(self, result: LoginResult, now: float, profile: ProfileConfig | None = None):
         if result.succeeded:
             self.reset_backoff()
             if result.keepalive:
                 # Clamp keepalive interval between 45 and 3600 seconds
                 self.keepalive_interval = max(45, min(result.keepalive.interval_seconds, 3600))
                 self.keepalive_url = result.keepalive.url
+            elif profile:
+                if profile.keepalive_interval_seconds is not None:
+                    self.keepalive_interval = max(45, min(profile.keepalive_interval_seconds, 3600))
+                if profile.keepalive_url is not None:
+                    self.keepalive_url = profile.keepalive_url
             self.last_keepalive_time = now
         else:
             self.increase_backoff()

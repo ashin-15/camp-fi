@@ -86,7 +86,7 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
             
             login_result = execute_login(probe.redirect_url, profile.username, password, cookies_path)
             had_failures = state.consecutive_failures > 0
-            state.update_from_login(login_result, now)
+            state.update_from_login(login_result, now, profile)
             record_event(
                 get_history_path(),
                 "login_success" if login_result.succeeded else "login_failed",

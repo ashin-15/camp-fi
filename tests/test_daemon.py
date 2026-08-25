@@ -52,6 +52,63 @@ def test_keepalive_clamping():
     state.update_from_login(success_too_long, now=100.0)
     assert state.keepalive_interval == 3600
 
+
+def test_update_from_login_profile_fallback():
+    state = DaemonState()
+    profile = ProfileConfig(
+        username="testuser",
+        ssids=["TestSSID"],
+        keepalive_url="http://manual.override/ping",
+        keepalive_interval_seconds=150,
+    )
+    success_no_keepalive = LoginResult(status=LoginStatus.SUCCESS, adapter_name="custom", keepalive=None)
+    state.update_from_login(success_no_keepalive, now=100.0, profile=profile)
+
+    assert state.backoff_seconds == 5
+    assert state.keepalive_url == "http://manual.override/ping"
+    assert state.keepalive_interval == 150
+
+
+def test_update_from_login_profile_clamping():
+    state = DaemonState()
+    profile_short = ProfileConfig(
+        username="testuser",
+        ssids=["TestSSID"],
+        keepalive_url="http://manual.override/ping",
+        keepalive_interval_seconds=15,
+    )
+    success_no_keepalive = LoginResult(status=LoginStatus.SUCCESS, keepalive=None)
+    state.update_from_login(success_no_keepalive, now=100.0, profile=profile_short)
+    assert state.keepalive_interval == 45
+
+    profile_long = ProfileConfig(
+        username="testuser",
+        ssids=["TestSSID"],
+        keepalive_url="http://manual.override/ping",
+        keepalive_interval_seconds=10000,
+    )
+    state.update_from_login(success_no_keepalive, now=100.0, profile=profile_long)
+    assert state.keepalive_interval == 3600
+
+
+def test_update_from_login_prefers_detected_over_profile():
+    state = DaemonState()
+    profile = ProfileConfig(
+        username="testuser",
+        ssids=["TestSSID"],
+        keepalive_url="http://manual.override/ping",
+        keepalive_interval_seconds=600,
+    )
+    detected_keepalive = KeepaliveSpec("http://detected.portal/keepalive", 120)
+    success_with_keepalive = LoginResult(
+        status=LoginStatus.SUCCESS,
+        adapter_name="fortinet",
+        keepalive=detected_keepalive,
+    )
+    state.update_from_login(success_with_keepalive, now=100.0, profile=profile)
+
+    assert state.keepalive_url == "http://detected.portal/keepalive"
+    assert state.keepalive_interval == 120
 def test_daemon_shutdown_latency_on_sigint():
     code = """
 from unittest.mock import patch
