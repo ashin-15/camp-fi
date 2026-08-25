@@ -11,6 +11,7 @@ from .net.captive import execute_login
 from .net.http_client import build_http_client
 from .net.probes import ConnectivityStatus, check_connectivity
 from .net.ssid import get_current_ssid
+from .notify import notify
 from .paths import get_cookie_path, get_history_path
 
 logger = logging.getLogger("camp-fi")
@@ -22,7 +23,7 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
         stop_event = threading.Event()
 
     def stop_handler(signum, frame):
-        logger.info(f"Received signal {signum}. Shutting down daemon...")
+        logger.info("Received signal %s. Shutting down daemon...", signum)
         stop_event.set()
 
     try:
@@ -56,7 +57,7 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
         profile = config.profiles[active_profile_name]
         password = get_password(active_profile_name, profile.username)
         if not password:
-            logger.error(f"No password for profile '{active_profile_name}', user '{profile.username}'.")
+            logger.error("No password for profile '%s', user '%s'.", active_profile_name, profile.username)
             if stop_event.wait(60):
                 break
             continue
@@ -69,21 +70,22 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
             state.reset_backoff()
             if state.is_keepalive_due(now):
                 if state.keepalive_url:
-                    logger.info(f"Pinging keepalive URL: {state.keepalive_url}")
+                    logger.info("Pinging keepalive URL: %s", state.keepalive_url)
                     try:
                         with build_http_client(timeout=5.0, follow_redirects=True) as c:
                             c.get(state.keepalive_url)
                     except Exception as e:
-                        logger.warning(f"Keepalive ping failed: {e}")
+                        logger.warning("Keepalive ping failed: %s", e)
                 state.last_keepalive_time = now
             if stop_event.wait(15):
                 break
         elif probe.status == ConnectivityStatus.CAPTIVE:
-            logger.info(f"Captive portal detected at {probe.redirect_url}. Logging in...")
+            logger.info("Captive portal detected at %s. Logging in...", probe.redirect_url)
             record_event(get_history_path(), "captive_detected", active_profile_name)
             cookies_path = get_cookie_path(active_profile_name)
             
             login_result = execute_login(probe.redirect_url, profile.username, password, cookies_path)
+            had_failures = state.consecutive_failures > 0
             state.update_from_login(login_result, now)
             record_event(
                 get_history_path(),
@@ -93,9 +95,13 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
             )
             
             if login_result.succeeded:
-                logger.info(f"Successfully authenticated via adapter '{login_result.adapter_name}'.")
+                logger.info("Successfully authenticated via adapter '%s'.", login_result.adapter_name)
+                if had_failures:
+                    notify("camp-fi", f"Reconnected via {login_result.adapter_name}")
             else:
-                logger.warning(f"Login failed ({login_result.message}). Backing off for {state.backoff_seconds} seconds.")
+                logger.warning("Login failed (%s). Backing off for %s seconds.", login_result.message, state.backoff_seconds)
+                if state.consecutive_failures == 3:
+                    notify("camp-fi: login failing", login_result.message or "Login failed", urgency="critical")
                 if stop_event.wait(state.backoff_seconds):
                     break
         else:

@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-import time
-from .net.probes import ConnectivityStatus, ProbeResult
-from .models import LoginResult, KeepaliveSpec
+
+from .models import LoginResult
+from .net.probes import ConnectivityStatus
+
 
 @dataclass
 class DaemonState:
@@ -12,12 +13,15 @@ class DaemonState:
     keepalive_url: str | None = None
     last_keepalive_time: float = 0
     last_status: ConnectivityStatus | None = None
+    consecutive_failures: int = 0
 
     def reset_backoff(self):
         self.backoff_seconds = 5
+        self.consecutive_failures = 0
 
     def increase_backoff(self):
         self.backoff_seconds = min(self.backoff_seconds * 2, self.max_backoff_seconds)
+        self.consecutive_failures += 1
 
     def is_keepalive_due(self, now: float) -> bool:
         if not self.keepalive_interval:

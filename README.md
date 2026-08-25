@@ -9,13 +9,14 @@
 3. **Portal Discovery**: If the probe is redirected (HTTP 302) or intercepted, the daemon knows it's behind a captive portal.
 4. **Auto-Login**: It fetches the portal page, automatically parses the HTML `<form>`, maps the username and password fields, and submits your securely stored credentials.
 5. **Keepalive**: Upon successful login, it extracts any keepalive intervals (e.g., from `<meta http-equiv="refresh">`) and maintains your active session. Failed logins trigger an exponential backoff to prevent spamming the network.
+6. **Desktop Notifications (Optional)**: If `notify-send` (`libnotify`) is available, the daemon passively alerts you if authentication fails repeatedly (after 3 consecutive failures) and confirms when connectivity is restored. On headless or server systems without `notify-send`, notifications silently no-op.
 
 ## Prerequisites
 
 - **Python 3.10+**
 - **OS Keyring API**: A Secret Service implementation (e.g., GNOME Keyring, KWallet) must be running, as `camp-fi` refuses to store passwords in plaintext.
 - **NetworkManager** (recommended): For `nmcli` support.
-
+- **libnotify / notify-send** (optional): For best-effort desktop notifications on repeated login failures and reconnections.
 ## Installation
 
 You can install the tool using [`uv`](https://github.com/astral-sh/uv) (recommended) or `pip`:

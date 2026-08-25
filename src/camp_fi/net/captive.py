@@ -55,7 +55,7 @@ def execute_login(
                         
                 if next_url:
                     final_url = urljoin(final_url, next_url)
-                    logger.info(f"Following HTML/JS redirect to {final_url}")
+                    logger.info("Following HTML/JS redirect to %s", final_url)
                     resp = client.get(final_url)
                     resp.raise_for_status()
                     html = resp.text
@@ -71,7 +71,7 @@ def execute_login(
                     message="No supported login form or portal adapter was found.",
                 )
                 
-            logger.info(f"Using portal adapter '{adapter.name}'.")
+            logger.info("Using portal adapter '%s'.", adapter.name)
             prepared = adapter.prepare_login(client, html, final_url)
             login_resp = adapter.submit_login(client, prepared, username, password)
             login_resp.raise_for_status()
@@ -90,7 +90,7 @@ def execute_login(
                     keepalive=keepalive,
                 )
             else:
-                logger.warning(f"Login submitted but no internet. Probe status: {probe.status}")
+                logger.warning("Login submitted but no internet. Probe status: %s", probe.status)
                 return LoginResult(
                     status=LoginStatus.AUTH_FAILED,
                     adapter_name=adapter.name,
@@ -98,8 +98,8 @@ def execute_login(
                 )
                 
         except httpx.RequestError as e:
-            logger.error(f"Network error during login: {e}")
+            logger.error("Network error during login: %s", e)
             return LoginResult(status=LoginStatus.NETWORK_ERROR, message=str(e))
         except Exception as e:
-            logger.error(f"Login failed: {e}")
+            logger.error("Login failed: %s", e)
             return LoginResult(status=LoginStatus.PROTOCOL_ERROR, message=str(e))

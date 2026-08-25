@@ -75,7 +75,7 @@ def load_cookies(client: httpx.Client, path: Path, default_url: str) -> None:
                     path_val = item.get("path") or "/"
                     client.cookies.set(item["name"], str(item["value"]), domain=domain, path=path_val)
     except Exception as e:
-        logger.warning(f"Failed to load cookies from {path} (corrupt/invalid): {e}. Discarding cookie file.")
+        logger.warning("Failed to load cookies from %s (corrupt/invalid): %s. Discarding cookie file.", path, e)
         try:
             path.unlink(missing_ok=True)
         except OSError:

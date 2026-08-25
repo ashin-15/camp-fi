@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from enum import Enum, auto
+
 import httpx
+
 from .http_client import build_http_client
+
 
 class ConnectivityStatus(Enum):
     INTERNET = auto()
@@ -35,19 +38,25 @@ class ProbeResult:
     status_code: int | None = None
 
 def check_connectivity(timeout: float = 3.0, specs: list[ProbeSpec] | None = None) -> ProbeResult:
-    """Check network connectivity across standard probes and classify status."""
+    """Check network connectivity across standard probes and classify status.
+
+    Redirects are unambiguous captive portal evidence. Other unexpected
+    responses require corroboration across probes before returning CAPTIVE.
+    """
     active_specs = specs or PROBE_SPECS
 
     # Support monkeypatched PROBE_URLS if test overrides it
     if PROBE_URLS and PROBE_URLS[0] != active_specs[0].url:
         active_specs = [ProbeSpec("Custom", PROBE_URLS[0], 204)]
 
+    captive_hits: list[ProbeResult] = []
+    reachable = False
+
     with build_http_client(timeout=timeout, follow_redirects=False) as client:
-        all_offline = True
         for spec in active_specs:
             try:
                 resp = client.get(spec.url)
-                all_offline = False
+                reachable = True
 
                 if 300 <= resp.status_code < 400 and "location" in resp.headers:
                     return ProbeResult(
@@ -57,24 +66,30 @@ def check_connectivity(timeout: float = 3.0, specs: list[ProbeSpec] | None = Non
                         status_code=resp.status_code,
                     )
 
-                if resp.status_code == spec.success_status:
-                    if spec.success_body is None or spec.success_body in resp.text:
-                        return ProbeResult(
-                            status=ConnectivityStatus.INTERNET,
-                            probe_name=spec.name,
-                            status_code=resp.status_code,
-                        )
+                if resp.status_code == spec.success_status and (
+                    spec.success_body is None or spec.success_body in resp.text
+                ):
+                    return ProbeResult(
+                        ConnectivityStatus.INTERNET,
+                        spec.name,
+                        status_code=resp.status_code,
+                    )
 
-                # Intercepted HTML or unexpected status code
-                return ProbeResult(
-                    status=ConnectivityStatus.CAPTIVE,
-                    probe_name=spec.name,
-                    redirect_url=spec.url,
-                    status_code=resp.status_code,
+                captive_hits.append(
+                    ProbeResult(
+                        ConnectivityStatus.CAPTIVE,
+                        spec.name,
+                        redirect_url=spec.url,
+                        status_code=resp.status_code,
+                    )
                 )
             except httpx.RequestError:
                 continue
 
-    if all_offline:
+    if not reachable:
         return ProbeResult(ConnectivityStatus.OFFLINE)
+    if len(captive_hits) >= 2 or (active_specs and len(captive_hits) == len(active_specs)):
+        return captive_hits[0]
+    if captive_hits:
+        return ProbeResult(ConnectivityStatus.UNKNOWN)
     return ProbeResult(ConnectivityStatus.UNKNOWN)

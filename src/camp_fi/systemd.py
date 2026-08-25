@@ -37,7 +37,7 @@ def _run_systemctl(args: list[str]) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(cmd, check=True, text=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed systemctl command '{' '.join(cmd)}': {e.stderr.strip()}")
+        logger.error("Failed systemctl command '%s': %s", " ".join(cmd), e.stderr.strip())
         raise RuntimeError(f"systemctl error: {e.stderr.strip()}") from e
 
 def install_service():
@@ -49,7 +49,7 @@ def install_service():
     _run_systemctl(["daemon-reload"])
     _run_systemctl(["enable", "camp-fi.service"])
     _run_systemctl(["start", "camp-fi.service"])
-    logger.info(f"Service installed and started at {path}")
+    logger.info("Service installed and started at %s", path)
 
 def start_service():
     _run_systemctl(["start", "camp-fi.service"])
