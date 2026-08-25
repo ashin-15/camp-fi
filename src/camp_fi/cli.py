@@ -296,5 +296,223 @@ def init():
         typer.echo(f"[WARNING] Keyring backend check failed: {e}", err=True)
 
     typer.echo("\nInitialization check complete.")
+
+def _print_doctor_report(report: dict):
+    import datetime
+
+    typer.echo("=== camp-fi doctor ===\n")
+    checks = report.get("checks", {})
+    warnings = report.get("warnings", [])
+
+    # --- Environment ---
+    typer.echo("--- Environment ---")
+    cfg_dir = checks.get("config_dir")
+    st_dir = checks.get("state_dir")
+    if cfg_dir:
+        typer.echo(f"[OK] Config directory: {cfg_dir}")
+    if st_dir:
+        typer.echo(f"[OK] State directory: {st_dir}")
+
+    ssid_tool = checks.get("ssid_detection")
+    if ssid_tool:
+        typer.echo(f"[OK] Network detection: {ssid_tool} available")
+    else:
+        typer.echo("[WARNING] Network detection: Neither nmcli nor iwgetid found in PATH.")
+
+    backend = checks.get("keyring_backend")
+    if backend and "fail" not in backend.lower() and "null" not in backend.lower():
+        typer.echo(f"[OK] Keyring backend: {backend}")
+    elif backend:
+        typer.echo(f"[WARNING] Keyring backend: {backend} (non-functional)")
+    else:
+        typer.echo("[WARNING] Keyring backend: Not available")
+
+    # --- Service ---
+    typer.echo("\n--- Service ---")
+    active = checks.get("systemd_service_active")
+    if active is True:
+        typer.echo("[OK] systemd service: active")
+    elif active is False:
+        typer.echo("[WARNING] systemd service: inactive (camp-fi service start)")
+    else:
+        typer.echo(f"[OK] systemd service: {active}")
+
+    # --- Network ---
+    typer.echo("\n--- Network ---")
+    ssid = checks.get("current_ssid", "unknown")
+    typer.echo(f"Current SSID: {ssid}")
+    matched = checks.get("matched_profile")
+    typer.echo(f"Matched Profile: {matched or 'None'}")
+    conn = checks.get("connectivity_status")
+    if conn:
+        typer.echo(f"Connectivity: {conn}")
+    if matched:
+        has_pass = checks.get("credentials_stored")
+        typer.echo(f"Credentials Stored: {'Yes' if has_pass else 'No'}")
+
+    # --- Daemon State ---
+    typer.echo("\n--- Daemon State ---")
+    daemon_state = checks.get("daemon_state")
+    if daemon_state:
+        age = checks.get("daemon_state_age_seconds")
+        typer.echo(f"Active Profile: {daemon_state.get('active_profile') or 'None'}")
+        typer.echo(f"Last Status: {daemon_state.get('last_status') or 'None'}")
+        typer.echo(
+            f"Backoff: {daemon_state.get('backoff_seconds')}s "
+            f"(consecutive failures: {daemon_state.get('consecutive_failures', 0)})"
+        )
+        if age is not None:
+            typer.echo(f"State Age: {age}s ago")
+    else:
+        typer.echo("No live daemon state recorded.")
+
+    # --- Recent Login Attempts ---
+    typer.echo("\n--- Recent Login Attempts ---")
+    recent = checks.get("recent_attempts", [])
+    if recent:
+        for e in recent:
+            ts_val = e.get("ts")
+            if ts_val:
+                try:
+                    ts = datetime.datetime.fromtimestamp(ts_val, tz=datetime.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    ts = str(ts_val)
+            else:
+                ts = "unknown"
+            typer.echo(
+                f"[{ts}] {e.get('event')} profile={e.get('profile')} "
+                f"adapter={e.get('adapter')} status={e.get('status')} {e.get('message') or ''}"
+            )
+    else:
+        typer.echo("No recent login attempts recorded.")
+
+    # --- Summary ---
+    if warnings:
+        typer.echo(f"\nWarnings ({len(warnings)}):")
+        for w in warnings:
+            typer.echo(f"  - [WARNING] {w}")
+    else:
+        typer.echo("\n[OK] All checks passed.")
+
+
+@app.command("doctor")
+def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-readable JSON")):
+    import json as _json
+    import shutil
+    import time
+
+    import keyring
+
+    from .credentials import get_password
+    from .history import read_recent
+    from .net.probes import check_connectivity
+    from .net.ssid import get_current_ssid
+    from .paths import (
+        get_config_dir,
+        get_config_path,
+        get_history_path,
+        get_live_state_path,
+        get_state_dir,
+    )
+    from .systemd import is_service_active
+
+    report: dict = {"checks": {}, "warnings": []}
+
+    # --- Environment ---
+    try:
+        report["checks"]["config_dir"] = str(get_config_dir())
+        report["checks"]["state_dir"] = str(get_state_dir())
+
+        has_nmcli = shutil.which("nmcli") is not None
+        has_iwgetid = shutil.which("iwgetid") is not None
+        report["checks"]["ssid_detection"] = "nmcli" if has_nmcli else ("iwgetid" if has_iwgetid else None)
+        if not (has_nmcli or has_iwgetid):
+            report["warnings"].append("No nmcli or iwgetid found — SSID detection will always fail.")
+
+        try:
+            backend = keyring.get_keyring()
+            report["checks"]["keyring_backend"] = backend.__class__.__name__
+            if "fail" in backend.__class__.__name__.lower() or "null" in backend.__class__.__name__.lower():
+                report["warnings"].append("Keyring backend appears non-functional — credentials cannot be stored.")
+        except Exception as e:
+            report["checks"]["keyring_backend"] = None
+            report["warnings"].append(f"Keyring check failed: {e}")
+    except Exception as e:
+        report["warnings"].append(f"Environment check failed: {e}")
+
+    # --- Service status ---
+    try:
+        active = is_service_active()
+        report["checks"]["systemd_service_active"] = active
+        if active is False:
+            report["warnings"].append("systemd service is installed but not running (camp-fi service start).")
+        elif active is None:
+            report["checks"]["systemd_service_active"] = "n/a (no systemd)"
+    except Exception as e:
+        active = None
+        report["checks"]["systemd_service_active"] = "n/a"
+        report["warnings"].append(f"Service status check failed: {e}")
+
+    # --- Current network state ---
+    try:
+        config = load_config()
+        ssid = get_current_ssid()
+        report["checks"]["current_ssid"] = ssid or "unknown"
+        matched_profile = next((n for n, p in config.profiles.items() if ssid and ssid in p.ssids), None)
+        report["checks"]["matched_profile"] = matched_profile
+        if ssid and not matched_profile:
+            report["warnings"].append(f"SSID '{ssid}' doesn't match any configured profile.")
+
+        probe = check_connectivity()
+        report["checks"]["connectivity_status"] = probe.status.name
+
+        if matched_profile:
+            prof = config.profiles[matched_profile]
+            has_pass = bool(get_password(matched_profile, prof.username)) if prof.username else False
+            report["checks"]["credentials_stored"] = has_pass
+            if not has_pass:
+                report["warnings"].append(f"No stored credentials for matched profile '{matched_profile}'.")
+    except Exception as e:
+        report["warnings"].append(f"Network state check failed: {e}")
+
+    # --- Live backoff/retry state ---
+    try:
+        live_path = get_live_state_path()
+        if live_path.exists():
+            try:
+                live = _json.loads(live_path.read_text())
+                age = time.time() - live.get("updated_at", 0)
+                report["checks"]["daemon_state"] = live
+                report["checks"]["daemon_state_age_seconds"] = round(age)
+                if age > 120:
+                    report["warnings"].append(f"Daemon state is {round(age)}s old — daemon may be stuck or stopped.")
+                if live.get("consecutive_failures", 0) >= 3:
+                    report["warnings"].append(
+                        f"{live['consecutive_failures']} consecutive login failures, backoff at {live.get('backoff_seconds')}s."
+                    )
+            except Exception:
+                report["warnings"].append("Live daemon state file is corrupt.")
+        else:
+            report["checks"]["daemon_state"] = None
+            if active:
+                report["warnings"].append("Daemon is active but has not written state yet (just started?).")
+    except Exception as e:
+        report["warnings"].append(f"Live state check failed: {e}")
+
+    # --- Recent history ---
+    try:
+        recent = read_recent(get_history_path(), limit=5)
+        report["checks"]["recent_attempts"] = recent
+    except Exception:
+        report["checks"]["recent_attempts"] = []
+
+    # --- Output ---
+    if as_json:
+        typer.echo(_json.dumps(report, indent=2, default=str))
+    else:
+        _print_doctor_report(report)
+
+    if report["warnings"]:
+        raise typer.Exit(1)
 if __name__ == "__main__":
     app()

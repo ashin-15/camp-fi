@@ -12,7 +12,8 @@ from .net.http_client import build_http_client
 from .net.probes import ConnectivityStatus, check_connectivity
 from .net.ssid import get_current_ssid
 from .notify import notify
-from .paths import get_cookie_path, get_history_path
+from .paths import get_cookie_path, get_history_path, get_live_state_path
+from .session_store import write_private_json
 
 logger = logging.getLogger("camp-fi")
 
@@ -64,6 +65,7 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
             
         probe = check_connectivity()
         state.last_status = probe.status
+        write_private_json(get_live_state_path(), state.to_dict())
         now = time.time()
         
         if probe.status == ConnectivityStatus.INTERNET:
@@ -87,6 +89,7 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
             login_result = execute_login(probe.redirect_url, profile.username, password, cookies_path)
             had_failures = state.consecutive_failures > 0
             state.update_from_login(login_result, now, profile)
+            write_private_json(get_live_state_path(), state.to_dict())
             record_event(
                 get_history_path(),
                 "login_success" if login_result.succeeded else "login_failed",

@@ -40,6 +40,17 @@ def _run_systemctl(args: list[str]) -> subprocess.CompletedProcess:
         logger.error("Failed systemctl command '%s': %s", " ".join(cmd), e.stderr.strip())
         raise RuntimeError(f"systemctl error: {e.stderr.strip()}") from e
 
+def is_service_active() -> bool | None:
+    """Returns True/False if determinable, None if systemctl/unit check itself failed."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", "camp-fi.service"],
+            text=True, capture_output=True, check=False,
+        )
+        return result.stdout.strip() == "active"
+    except FileNotFoundError:
+        return None  # no systemd available (e.g. non-systemd distro, containers)
+
 def install_service():
     path = get_service_path()
     content = render_service_unit()

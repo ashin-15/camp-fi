@@ -78,6 +78,7 @@ camp-fi service start
 ## CLI Reference
 
 ### Operational & Diagnostics
+- `camp-fi doctor [--json]`: Run comprehensive one-shot diagnostics across environment, systemd service, network, live daemon state, and login history.
 - `camp-fi init`: Run system initialization and environment capability checks.
 - `camp-fi status`: View current SSID, network status, configuration path, and active profile status.
 - `camp-fi history [--limit <n>]`: Show recent captive portal and login events.

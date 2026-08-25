@@ -20,6 +20,9 @@ def get_config_path() -> Path:
 
 def get_history_path() -> Path:
     return get_state_dir() / "history.jsonl"
+def get_live_state_path() -> Path:
+    return get_state_dir() / "daemon_live_state.json"
+
 
 def get_cookie_path(profile: str) -> Path:
     p = get_state_dir() / f"cookies-{profile}.json"

@@ -268,3 +268,58 @@ def test_daemon_no_reconnect_notification_on_initial_success():
         camp_fi.daemon.run_daemon(stop_event=stop_event)
 
     mock_notify.assert_not_called()
+
+
+def test_daemon_state_to_dict():
+    state = DaemonState(
+        active_profile="iiitk",
+        backoff_seconds=10,
+        consecutive_failures=2,
+        last_status=ConnectivityStatus.CAPTIVE,
+        keepalive_interval=120,
+        last_keepalive_time=123456.0,
+    )
+    d = state.to_dict()
+    assert d["active_profile"] == "iiitk"
+    assert d["backoff_seconds"] == 10
+    assert d["consecutive_failures"] == 2
+    assert d["last_status"] == "CAPTIVE"
+    assert d["keepalive_interval"] == 120
+    assert d["last_keepalive_time"] == 123456.0
+    assert isinstance(d["updated_at"], float)
+    assert d["updated_at"] > 0
+
+
+def test_get_live_state_path(tmp_path, monkeypatch):
+    from camp_fi.paths import get_live_state_path
+    monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)
+    assert get_live_state_path() == tmp_path / "daemon_live_state.json"
+
+
+def test_daemon_writes_live_state(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
+    monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)
+
+    dummy_config = AppConfig(profiles={
+        "test": ProfileConfig(username="testuser", ssids=["TestSSID"])
+    })
+    stop_event = threading.Event()
+
+    def mock_check():
+        stop_event.set()
+        return ProbeResult(ConnectivityStatus.INTERNET)
+
+    with patch("camp_fi.daemon.load_config", return_value=dummy_config), \
+         patch("camp_fi.daemon.get_current_ssid", return_value="TestSSID"), \
+         patch("camp_fi.daemon.get_password", return_value="testpass"), \
+         patch("camp_fi.daemon.check_connectivity", side_effect=mock_check), \
+         patch.object(stop_event, "wait", side_effect=lambda timeout: stop_event.is_set()):
+        camp_fi.daemon.run_daemon(stop_event=stop_event)
+
+    live_file = tmp_path / "daemon_live_state.json"
+    assert live_file.exists()
+    data = json.loads(live_file.read_text())
+    assert data["active_profile"] == "test"
+    assert data["last_status"] == "INTERNET"
+    assert data["consecutive_failures"] == 0

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -47,3 +48,14 @@ class DaemonState:
             self.last_keepalive_time = now
         else:
             self.increase_backoff()
+
+    def to_dict(self) -> dict:
+        return {
+            "active_profile": self.active_profile,
+            "backoff_seconds": self.backoff_seconds,
+            "consecutive_failures": self.consecutive_failures,
+            "last_status": self.last_status.name if self.last_status else None,
+            "keepalive_interval": self.keepalive_interval,
+            "last_keepalive_time": self.last_keepalive_time,
+            "updated_at": time.time(),
+        }

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **Doctor Diagnostic Command & Live Daemon State Persistence**: Added `camp-fi doctor` for one-shot diagnostics (environment, systemd service liveness, network connectivity, live backoff/retry state, and login history) with `--json` support, plus atomic live state persistence (`daemon_live_state.json`).
 - **Login History**: Added private JSONL history persistence for captive portal detections and login attempts, plus a `camp-fi history` command for recent diagnostics.
 
 ### Fixed
