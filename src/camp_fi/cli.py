@@ -22,10 +22,17 @@ config_app.add_typer(ssids_app, name="ssids")
 config_app.add_typer(keepalive_app, name="keepalive")
 app.add_typer(creds_app, name="creds")
 app.add_typer(systemd_app, name="service")
+@app.callback()
+def main(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose/debug logging"),
+):
+    import logging
+    from .logging_config import setup_logging
+    level = logging.DEBUG if verbose else logging.INFO
+    setup_logging(level=level)
+
 @app.command("daemon")
 def daemon(foreground: bool = typer.Option(False, "--foreground", help="Run in foreground")):
-    from .logging_config import setup_logging
-    setup_logging()
     run_daemon(foreground)
 
 @app.command("inspect-har")

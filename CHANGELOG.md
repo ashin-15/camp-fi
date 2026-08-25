@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Login History**: Added private JSONL history persistence for captive portal detections and login attempts, plus a `camp-fi history` command for recent diagnostics.
 
 ### Fixed
+- **Dynamic Config Ingestion & Comprehensive Daemon/Service Logging**: Fixed daemon running with stale configuration by reloading `load_config()` in each loop iteration. Added global CLI logging initialization with `--verbose` support, credential passing logs during captive portal authentication, keyring credential storage/deletion logs, and systemd service lifecycle logs with automated secret redaction.
 - **Instant Daemon Shutdown**: Replaced blocking `time.sleep` system calls with `threading.Event.wait` in daemon loop, eliminating the up to 15–60s shutdown latency on `SIGINT` (Ctrl+C) and `SIGTERM`.
-
 ## [0.2.0] - 2026-08-09
 ### Added
 - **Structured Login Contracts**: Added typed `LoginResult`, `LoginStatus`, and `KeepaliveSpec` models.

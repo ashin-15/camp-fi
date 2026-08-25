@@ -73,9 +73,9 @@ def execute_login(
                 
             logger.info("Using portal adapter '%s'.", adapter.name)
             prepared = adapter.prepare_login(client, html, final_url)
+            logger.info("Passing credentials for user '%s' via '%s' adapter.", username, adapter.name)
             login_resp = adapter.submit_login(client, prepared, username, password)
             login_resp.raise_for_status()
-            
             if cookies_path:
                 save_cookies(client, cookies_path)
                 

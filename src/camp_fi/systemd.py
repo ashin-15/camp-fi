@@ -57,21 +57,29 @@ def install_service():
     with path.open("w", encoding="utf-8") as f:
         f.write(content)
 
+    logger.info("Installing and starting camp-fi systemd service...")
     _run_systemctl(["daemon-reload"])
     _run_systemctl(["enable", "camp-fi.service"])
     _run_systemctl(["start", "camp-fi.service"])
-    logger.info("Service installed and started at %s", path)
+    logger.info("Service installed, enabled, and started at %s", path)
 
 def start_service():
+    logger.info("Starting camp-fi systemd service...")
     _run_systemctl(["start", "camp-fi.service"])
+    logger.info("camp-fi systemd service started successfully.")
 
 def stop_service():
+    logger.info("Stopping camp-fi systemd service...")
     _run_systemctl(["stop", "camp-fi.service"])
+    logger.info("camp-fi systemd service stopped successfully.")
 
 def restart_service():
+    logger.info("Restarting camp-fi systemd service...")
     _run_systemctl(["restart", "camp-fi.service"])
+    logger.info("camp-fi systemd service restarted successfully.")
 
 def uninstall_service():
+    logger.info("Uninstalling camp-fi systemd service...")
     path = get_service_path()
     try:
         _run_systemctl(["stop", "camp-fi.service"])
@@ -85,4 +93,4 @@ def uninstall_service():
     if path.exists():
         path.unlink()
         _run_systemctl(["daemon-reload"])
-    logger.info("Service uninstalled.")
+    logger.info("camp-fi systemd service uninstalled successfully.")

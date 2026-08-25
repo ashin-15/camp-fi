@@ -18,14 +18,21 @@ class RedactingFormatter(logging.Formatter):
         return msg
 
 def setup_logging(level=logging.INFO):
-    logger = logging.getLogger("camp-fi")
-    logger.setLevel(level)
+    formatter = RedactingFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     
-    if not logger.handlers:
-        ch = logging.StreamHandler()
-        ch.setLevel(level)
-        formatter = RedactingFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
+    for name in ("camp-fi", "camp_fi"):
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        
+        if not logger.handlers:
+            ch = logging.StreamHandler()
+            ch.setLevel(level)
+            ch.setFormatter(formatter)
+            logger.addHandler(ch)
+        else:
+            for handler in logger.handlers:
+                handler.setLevel(level)
+                if not isinstance(handler.formatter, RedactingFormatter):
+                    handler.setFormatter(formatter)
     
-    return logger
+    return logging.getLogger("camp-fi")

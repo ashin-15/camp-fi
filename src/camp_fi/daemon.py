@@ -18,7 +18,6 @@ from .session_store import write_private_json
 logger = logging.getLogger("camp-fi")
 
 def run_daemon(foreground: bool = False, stop_event: threading.Event | None = None):
-    config = load_config()
     state = DaemonState()
     if stop_event is None:
         stop_event = threading.Event()
@@ -37,12 +36,15 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
     logger.info("Starting camp-fi daemon loop...")
 
     while not stop_event.is_set():
+        config = load_config()
         ssid = get_current_ssid()
         if not ssid:
+            logger.debug("No Wi-Fi SSID detected. Waiting...")
             if stop_event.wait(10):
                 break
             continue
             
+        logger.debug("Current Wi-Fi SSID: '%s'.", ssid)
         active_profile_name = None
         for name, profile in config.profiles.items():
             if ssid in profile.ssids:
@@ -50,12 +52,14 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
                 break
                 
         if not active_profile_name:
+            logger.debug("SSID '%s' does not match any configured profile. Waiting...", ssid)
             if stop_event.wait(30):
                 break
             continue
             
         state.active_profile = active_profile_name
         profile = config.profiles[active_profile_name]
+        logger.debug("Matched profile '%s' for SSID '%s'.", active_profile_name, ssid)
         password = get_password(active_profile_name, profile.username)
         if not password:
             logger.error("No password for profile '%s', user '%s'.", active_profile_name, profile.username)
@@ -70,19 +74,21 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
         
         if probe.status == ConnectivityStatus.INTERNET:
             state.reset_backoff()
+            logger.debug("Internet connectivity verified (profile '%s').", active_profile_name)
             if state.is_keepalive_due(now):
                 if state.keepalive_url:
-                    logger.info("Pinging keepalive URL: %s", state.keepalive_url)
+                    logger.info("Pinging keepalive URL for profile '%s': %s", active_profile_name, state.keepalive_url)
                     try:
                         with build_http_client(timeout=5.0, follow_redirects=True) as c:
                             c.get(state.keepalive_url)
+                        logger.debug("Keepalive ping successful.")
                     except Exception as e:
                         logger.warning("Keepalive ping failed: %s", e)
                 state.last_keepalive_time = now
             if stop_event.wait(15):
                 break
         elif probe.status == ConnectivityStatus.CAPTIVE:
-            logger.info("Captive portal detected at %s. Logging in...", probe.redirect_url)
+            logger.info("Captive portal detected at %s for SSID '%s'. Passing credentials for profile '%s' (user: '%s')...", probe.redirect_url, ssid, active_profile_name, profile.username)
             record_event(get_history_path(), "captive_detected", active_profile_name)
             cookies_path = get_cookie_path(active_profile_name)
             
@@ -98,15 +104,16 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
             )
             
             if login_result.succeeded:
-                logger.info("Successfully authenticated via adapter '%s'.", login_result.adapter_name)
+                logger.info("Successfully authenticated profile '%s' (user: '%s') via adapter '%s'.", active_profile_name, profile.username, login_result.adapter_name)
                 if had_failures:
                     notify("camp-fi", f"Reconnected via {login_result.adapter_name}")
             else:
-                logger.warning("Login failed (%s). Backing off for %s seconds.", login_result.message, state.backoff_seconds)
+                logger.warning("Login failed for profile '%s' (%s). Backing off for %s seconds.", active_profile_name, login_result.message, state.backoff_seconds)
                 if state.consecutive_failures == 3:
                     notify("camp-fi: login failing", login_result.message or "Login failed", urgency="critical")
                 if stop_event.wait(state.backoff_seconds):
                     break
         else:
+            logger.debug("Connectivity status: %s. Waiting...", probe.status.name)
             if stop_event.wait(10):
                 break

@@ -11,6 +11,12 @@ from camp_fi.daemon_state import DaemonState
 from camp_fi.models import KeepaliveSpec, LoginResult, LoginStatus
 from camp_fi.net.probes import ConnectivityStatus, ProbeResult
 
+import pytest
+
+@pytest.fixture(autouse=True)
+def isolate_paths(tmp_path, monkeypatch):
+    monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
+    monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)
 
 def test_daemon_state_backoff():
     state = DaemonState()
