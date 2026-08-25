@@ -1,15 +1,17 @@
-import time
-import signal
 import logging
+import signal
 import threading
+import time
+
 from .config import load_config
 from .credentials import get_password
-from .net.ssid import get_current_ssid
-from .net.probes import check_connectivity, ConnectivityStatus
+from .daemon_state import DaemonState
+from .history import record_event
 from .net.captive import execute_login
 from .net.http_client import build_http_client
-from .paths import get_cookie_path
-from .daemon_state import DaemonState
+from .net.probes import ConnectivityStatus, check_connectivity
+from .net.ssid import get_current_ssid
+from .paths import get_cookie_path, get_history_path
 
 logger = logging.getLogger("camp-fi")
 
@@ -78,10 +80,17 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
                 break
         elif probe.status == ConnectivityStatus.CAPTIVE:
             logger.info(f"Captive portal detected at {probe.redirect_url}. Logging in...")
+            record_event(get_history_path(), "captive_detected", active_profile_name)
             cookies_path = get_cookie_path(active_profile_name)
             
             login_result = execute_login(probe.redirect_url, profile.username, password, cookies_path)
             state.update_from_login(login_result, now)
+            record_event(
+                get_history_path(),
+                "login_success" if login_result.succeeded else "login_failed",
+                active_profile_name,
+                login_result,
+            )
             
             if login_result.succeeded:
                 logger.info(f"Successfully authenticated via adapter '{login_result.adapter_name}'.")

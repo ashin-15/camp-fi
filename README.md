@@ -49,7 +49,7 @@ camp-fi creds set iiitk your_student_id
 ```
 
 ### 3. (Optional) Advanced Config
-The configuration is stored in `~/.config/camp-fi/config.yaml`. Session cookies are saved with strict permissions at `~/.local/state/camp-fi/cookies-<profile>.json`.
+The configuration is stored in `~/.config/camp-fi/config.yaml`. Session cookies are saved with strict permissions at `~/.local/state/camp-fi/cookies-<profile>.json`; login history is stored privately at `~/.local/state/camp-fi/history.jsonl`.
 
 ## Running the Service
 
@@ -79,6 +79,7 @@ camp-fi service start
 ### Operational & Diagnostics
 - `camp-fi init`: Run system initialization and environment capability checks.
 - `camp-fi status`: View current SSID, network status, configuration path, and active profile status.
+- `camp-fi history [--limit <n>]`: Show recent captive portal and login events.
 - `camp-fi login [--profile <name>]`: Perform a one-shot captive portal authentication attempt.
 - `camp-fi daemon [--foreground]`: Run the main event loop.
 - `camp-fi inspect-har <har_path>`: Inspect a browser HAR export for login form patterns.

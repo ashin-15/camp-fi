@@ -1,11 +1,12 @@
-import typer
-from .config import load_config, save_config
-from .paths import get_config_path
-from .credentials import set_password, delete_password
-from .daemon import run_daemon
-from .systemd import install_service, start_service, stop_service
-from .har import parse_login_har
 from pathlib import Path
+
+import typer
+
+from .config import load_config, save_config
+from .credentials import delete_password, set_password
+from .daemon import run_daemon
+from .har import parse_login_har
+from .systemd import install_service, start_service, stop_service
 
 app = typer.Typer(help="Wi-Fi Captive Portal Auto-Login Daemon")
 config_app = typer.Typer(help="Manage configuration")
@@ -147,11 +148,12 @@ def ssids_remove(profile: str = typer.Option(..., help="Profile name"), ssid: st
 
 @app.command("login")
 def login(profile: str = typer.Option(None, help="Profile to use (defaults to active SSID match)")):
-    from .net.ssid import get_current_ssid
-    from .net.probes import check_connectivity, ConnectivityStatus
-    from .net.captive import execute_login
-    from .paths import get_cookie_path
     from .credentials import get_password
+    from .history import record_event
+    from .net.captive import execute_login
+    from .net.probes import ConnectivityStatus, check_connectivity
+    from .net.ssid import get_current_ssid
+    from .paths import get_cookie_path, get_history_path
 
     config = load_config()
     selected_profile = profile
@@ -186,20 +188,46 @@ def login(profile: str = typer.Option(None, help="Profile to use (defaults to ac
         typer.echo(f"No captive portal detected (Status: {probe.status.name}).", err=True)
         raise typer.Exit(1)
 
+    record_event(get_history_path(), "captive_detected", selected_profile)
+
     cookies_path = get_cookie_path(selected_profile)
     result = execute_login(probe.redirect_url, prof.username, password, cookies_path)
+    record_event(
+        get_history_path(),
+        "login_success" if result.succeeded else "login_failed",
+        selected_profile,
+        result,
+    )
     if result.succeeded:
         typer.echo(f"Login successful via adapter '{result.adapter_name}'.")
     else:
         typer.echo(f"Login failed ({result.status.name}): {result.message}", err=True)
         raise typer.Exit(1)
 
+@app.command("history")
+def history(limit: int = typer.Option(20, help="Number of recent events to show")):
+    import datetime
+
+    from .history import read_recent
+    from .paths import get_history_path
+
+    entries = read_recent(get_history_path(), limit)
+    if not entries:
+        typer.echo("No history recorded yet.")
+        return
+    for e in entries:
+        ts = datetime.datetime.fromtimestamp(e["ts"], tz=datetime.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        typer.echo(
+            f"[{ts}] {e['event']} profile={e['profile']} adapter={e.get('adapter')} "
+            f"status={e.get('status')} {e.get('message') or ''}"
+        )
+
 @app.command("status")
 def status():
-    from .net.ssid import get_current_ssid
-    from .net.probes import check_connectivity
     from .credentials import get_password
-    from .paths import get_cookie_path, get_config_path
+    from .net.probes import check_connectivity
+    from .net.ssid import get_current_ssid
+    from .paths import get_config_path, get_cookie_path
 
     config = load_config()
     ssid = get_current_ssid() or "Disconnected / Unknown"
@@ -219,7 +247,9 @@ def status():
 @app.command("init")
 def init():
     import shutil
+
     import keyring
+
     from .paths import get_config_dir, get_state_dir
 
     typer.echo("=== camp-fi initialization check ===")

@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+
 from camp_fi.cli import app
 
 runner = CliRunner()
@@ -38,3 +39,15 @@ def test_cli_status(tmp_path, monkeypatch):
     res = runner.invoke(app, ["status"])
     assert res.exit_code == 0
     assert "=== camp-fi status ===" in res.output
+
+def test_cli_history(tmp_path, monkeypatch):
+    from camp_fi.history import record_event
+    from camp_fi.models import LoginResult, LoginStatus
+
+    monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)
+    record_event(tmp_path / "history.jsonl", "login_failed", "iiitk", LoginResult(LoginStatus.AUTH_FAILED, "test", message="bad pass"))
+
+    res = runner.invoke(app, ["history", "--limit", "1"])
+
+    assert res.exit_code == 0
+    assert "login_failed profile=iiitk adapter=test status=AUTH_FAILED bad pass" in res.output
