@@ -30,6 +30,20 @@ cd camp-fi
 uv tool install .
 ```
 
+Ensure `~/.local/bin/` is in your `PATH` so your shell can find the `camp-fi` command. For Bash or Zsh, add the following line to your shell configuration (`~/.bashrc` or `~/.zshrc`, respectively):
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Restart your shell or source the updated configuration (for example, `source ~/.bashrc`) to apply the change.
+
+For Fish, run the following command once. It updates `PATH` immediately and persists across future shell sessions:
+
+```fish
+fish_add_path "$HOME/.local/bin"
+```
+
 ## Configuration
 
 `camp-fi` uses "profiles" to manage different Wi-Fi networks and credentials. By default, it ships with an `iiitk` profile.
