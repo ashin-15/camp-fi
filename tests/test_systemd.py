@@ -1,4 +1,8 @@
-from camp_fi.systemd import render_service_unit
+import subprocess
+from unittest.mock import patch
+
+from camp_fi.systemd import is_service_active, render_service_unit
+
 
 def test_render_service_unit():
     unit = render_service_unit("/usr/bin/python3 -m camp_fi daemon --foreground")
@@ -8,9 +12,6 @@ def test_render_service_unit():
     assert "Restart=on-failure" in unit
     assert "RestartSec=15" in unit
 
-from unittest.mock import patch
-import subprocess
-from camp_fi.systemd import is_service_active
 
 def test_is_service_active_true():
     with patch("subprocess.run") as mock_run:

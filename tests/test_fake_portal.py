@@ -1,14 +1,14 @@
-import pytest
+import json
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
-import httpx
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
+
+import pytest
+
+from camp_fi.keepalive import parse_js_keepalive, parse_keepalive
 from camp_fi.net.captive import execute_login
 from camp_fi.net.probes import check_connectivity
-from camp_fi.keepalive import parse_js_keepalive, parse_keepalive, KeepaliveInfo
-import json
-import logging
 
 PORT = 8080
 
@@ -16,7 +16,6 @@ DEVICE_LOGGED_IN = False
 
 class FakePortalHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        global DEVICE_LOGGED_IN
         if self.path == "/generate_204":
             if "session=logged_in" in self.headers.get("Cookie", "") or DEVICE_LOGGED_IN:
                 self.send_response(204)

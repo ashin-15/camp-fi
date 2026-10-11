@@ -1,5 +1,6 @@
-import subprocess
 import shutil
+import subprocess
+
 
 def get_current_ssid() -> str | None:
     """Get the currently connected Wi-Fi SSID."""

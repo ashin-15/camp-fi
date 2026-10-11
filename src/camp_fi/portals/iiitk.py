@@ -1,7 +1,9 @@
 import httpx
-from .generic_form import parse_login_form
+
 from ..keepalive import parse_keepalive
-from ..models import PreparedLogin, KeepaliveSpec
+from ..models import KeepaliveSpec, PreparedLogin
+from .generic_form import parse_login_form
+
 
 class IIITKAdapter:
     name = "iiitk"

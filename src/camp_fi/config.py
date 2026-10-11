@@ -1,6 +1,8 @@
 import yaml
 from pydantic import BaseModel, Field
+
 from .paths import get_config_path
+
 
 class ProfileConfig(BaseModel):
     ssids: list[str] = Field(default_factory=list)

@@ -1,6 +1,7 @@
 import logging
 import re
 
+
 class RedactingFormatter(logging.Formatter):
     def __init__(self, fmt=None):
         super().__init__(fmt)

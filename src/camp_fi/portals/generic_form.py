@@ -1,9 +1,11 @@
-from bs4 import BeautifulSoup
-import httpx
-from ..models import PreparedLogin, KeepaliveSpec
-from ..keepalive import parse_keepalive
-
 from urllib.parse import urljoin
+
+import httpx
+from bs4 import BeautifulSoup
+
+from ..keepalive import parse_keepalive
+from ..models import KeepaliveSpec, PreparedLogin
+
 
 class FormInfo:
     def __init__(self, action: str, method: str, inputs: dict[str, str], user_field: str | None, pass_field: str | None):
@@ -34,9 +36,8 @@ def parse_login_form(html: str, base_url: str) -> FormInfo | None:
             
             if itype == "password":
                 pass_field = name
-            elif itype in ("text", "email") or "user" in name.lower():
-                if not user_field:
-                    user_field = name
+            elif (itype in ("text", "email") or "user" in name.lower()) and not user_field:
+                user_field = name
                     
         if pass_field:
             action = form.get("action", "")

@@ -1,7 +1,7 @@
-import httpx
-from camp_fi.portals.iiitk import IIITKAdapter
 from camp_fi.portals.fortinet import FortinetAdapter
 from camp_fi.portals.generic_form import GenericFormAdapter
+from camp_fi.portals.iiitk import IIITKAdapter
+
 
 def test_generic_form_adapter_match():
     adapter = GenericFormAdapter()

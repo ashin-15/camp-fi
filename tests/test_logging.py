@@ -1,5 +1,7 @@
 import logging
+
 from camp_fi.logging_config import RedactingFormatter
+
 
 def test_redacting_formatter():
     formatter = RedactingFormatter("%(message)s")
@@ -26,9 +28,9 @@ def test_setup_logging():
     assert len(logger.handlers) >= 1
 
 def test_credentials_logging(caplog):
-    import keyring
     from unittest.mock import patch
-    from camp_fi.credentials import set_password, get_password, delete_password
+
+    from camp_fi.credentials import delete_password, get_password, set_password
     from camp_fi.logging_config import setup_logging
 
     setup_logging(logging.DEBUG)
@@ -48,8 +50,15 @@ def test_credentials_logging(caplog):
 
 def test_systemd_service_logging(caplog):
     from unittest.mock import patch
-    from camp_fi.systemd import start_service, stop_service, restart_service, install_service, uninstall_service
+
     from camp_fi.logging_config import setup_logging
+    from camp_fi.systemd import (
+        install_service,
+        restart_service,
+        start_service,
+        stop_service,
+        uninstall_service,
+    )
 
     setup_logging(logging.INFO)
     with caplog.at_level(logging.INFO, logger="camp-fi"), \
@@ -79,10 +88,11 @@ def test_systemd_service_logging(caplog):
         assert "Uninstalling camp-fi systemd service..." in caplog.text
 
 def test_captive_login_credential_passing_log(caplog):
-    from unittest.mock import patch, MagicMock
-    from camp_fi.net.captive import execute_login
-    from camp_fi.net.probes import ProbeResult, ConnectivityStatus
+    from unittest.mock import MagicMock, patch
+
     from camp_fi.logging_config import setup_logging
+    from camp_fi.net.captive import execute_login
+    from camp_fi.net.probes import ConnectivityStatus, ProbeResult
 
     setup_logging(logging.INFO)
 
@@ -111,11 +121,12 @@ def test_captive_login_credential_passing_log(caplog):
 def test_daemon_credential_passing_log(caplog, tmp_path, monkeypatch):
     import threading
     from unittest.mock import patch
+
     from camp_fi.config import AppConfig, ProfileConfig
     from camp_fi.daemon import run_daemon
-    from camp_fi.models import LoginResult, LoginStatus
-    from camp_fi.net.probes import ProbeResult, ConnectivityStatus
     from camp_fi.logging_config import setup_logging
+    from camp_fi.models import LoginResult, LoginStatus
+    from camp_fi.net.probes import ConnectivityStatus, ProbeResult
 
     setup_logging(logging.INFO)
     monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
@@ -146,8 +157,8 @@ def test_daemon_credential_passing_log(caplog, tmp_path, monkeypatch):
 
 def test_cli_global_logging_callback(tmp_path, monkeypatch):
     from typer.testing import CliRunner
+
     from camp_fi.cli import app
-    import logging
 
     monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
     monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)

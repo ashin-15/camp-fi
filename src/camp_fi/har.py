@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+
 from pydantic import BaseModel
+
 
 class HarAction(BaseModel):
     url: str
@@ -8,7 +10,11 @@ class HarAction(BaseModel):
     headers: dict[str, str]
     data: dict[str, str]
 
-def parse_login_har(har_path: Path, username_field_hints: list[str] = None, password_field_hints: list[str] = None) -> HarAction | None:
+def parse_login_har(
+    har_path: Path,
+    username_field_hints: list[str] | None = None,
+    password_field_hints: list[str] | None = None,
+) -> HarAction | None:
     """Parse a HAR file to find the captive portal login request."""
     username_field_hints = username_field_hints or ["username", "user", "userid"]
     password_field_hints = password_field_hints or ["password", "pass", "pwd"]

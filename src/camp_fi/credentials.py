@@ -1,4 +1,5 @@
 import logging
+
 import keyring
 
 APP_NAME = "camp-fi"

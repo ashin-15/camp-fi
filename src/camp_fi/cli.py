@@ -27,6 +27,7 @@ def main(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose/debug logging"),
 ):
     import logging
+
     from .logging_config import setup_logging
     level = logging.DEBUG if verbose else logging.INFO
     setup_logging(level=level)
@@ -82,11 +83,10 @@ def profile_show(name: str):
 @creds_app.command("set")
 def creds_set(profile: str, username: str, password: str = typer.Option(..., prompt=True, hide_input=True)):
     import re
-    if profile == "iiitk":
-        if not re.match(r"^202[1-9](bc[a-z]|bec)[0-9]{4}$", username, re.IGNORECASE):
-            typer.echo(f"Warning: Username '{username}' does not match standard IIITK student ID format.", err=True)
-            if not typer.confirm("Do you want to continue anyway?"):
-                raise typer.Exit(1)
+    if profile == "iiitk" and not re.match(r"^202[1-9](bc[a-z]|bec)[0-9]{4}$", username, re.IGNORECASE):
+        typer.echo(f"Warning: Username '{username}' does not match standard IIITK student ID format.", err=True)
+        if not typer.confirm("Do you want to continue anyway?"):
+            raise typer.Exit(1)
     
     set_password(profile, username, password)
     config = load_config()
@@ -299,7 +299,7 @@ def init():
     try:
         backend = keyring.get_keyring()
         typer.echo(f"[OK] Keyring backend: {backend.__class__.__name__}")
-    except Exception as e:
+    except (keyring.errors.KeyringError, OSError) as e:
         typer.echo(f"[WARNING] Keyring backend check failed: {e}", err=True)
 
     typer.echo("\nInitialization check complete.")
@@ -382,7 +382,7 @@ def _print_doctor_report(report: dict):
             if ts_val:
                 try:
                     ts = datetime.datetime.fromtimestamp(ts_val, tz=datetime.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
-                except Exception:
+                except (TypeError, ValueError, OverflowError, OSError):
                     ts = str(ts_val)
             else:
                 ts = "unknown"
@@ -407,8 +407,10 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
     import json as _json
     import shutil
     import time
+    from subprocess import SubprocessError
 
     import keyring
+    import yaml
 
     from .credentials import get_password
     from .history import read_recent
@@ -416,7 +418,6 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
     from .net.ssid import get_current_ssid
     from .paths import (
         get_config_dir,
-        get_config_path,
         get_history_path,
         get_live_state_path,
         get_state_dir,
@@ -434,17 +435,17 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
         has_iwgetid = shutil.which("iwgetid") is not None
         report["checks"]["ssid_detection"] = "nmcli" if has_nmcli else ("iwgetid" if has_iwgetid else None)
         if not (has_nmcli or has_iwgetid):
-            report["warnings"].append("No nmcli or iwgetid found — SSID detection will always fail.")
+            report["warnings"].append("No nmcli or iwgetid found - SSID detection will always fail.")
 
         try:
             backend = keyring.get_keyring()
             report["checks"]["keyring_backend"] = backend.__class__.__name__
             if "fail" in backend.__class__.__name__.lower() or "null" in backend.__class__.__name__.lower():
-                report["warnings"].append("Keyring backend appears non-functional — credentials cannot be stored.")
-        except Exception as e:
+                report["warnings"].append("Keyring backend appears non-functional - credentials cannot be stored.")
+        except (keyring.errors.KeyringError, OSError) as e:
             report["checks"]["keyring_backend"] = None
             report["warnings"].append(f"Keyring check failed: {e}")
-    except Exception as e:
+    except OSError as e:
         report["warnings"].append(f"Environment check failed: {e}")
 
     # --- Service status ---
@@ -455,7 +456,7 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
             report["warnings"].append("systemd service is installed but not running (camp-fi service start).")
         elif active is None:
             report["checks"]["systemd_service_active"] = "n/a (no systemd)"
-    except Exception as e:
+    except (OSError, SubprocessError, UnicodeError) as e:
         active = None
         report["checks"]["systemd_service_active"] = "n/a"
         report["warnings"].append(f"Service status check failed: {e}")
@@ -479,7 +480,7 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
             report["checks"]["credentials_stored"] = has_pass
             if not has_pass:
                 report["warnings"].append(f"No stored credentials for matched profile '{matched_profile}'.")
-    except Exception as e:
+    except (OSError, ValueError, TypeError, yaml.YAMLError, keyring.errors.KeyringError) as e:
         report["warnings"].append(f"Network state check failed: {e}")
 
     # --- Live backoff/retry state ---
@@ -488,29 +489,31 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
         if live_path.exists():
             try:
                 live = _json.loads(live_path.read_text())
+                if not isinstance(live, dict):
+                    raise TypeError("Live daemon state must be a JSON object.")
                 age = time.time() - live.get("updated_at", 0)
                 report["checks"]["daemon_state"] = live
                 report["checks"]["daemon_state_age_seconds"] = round(age)
                 if age > 120:
-                    report["warnings"].append(f"Daemon state is {round(age)}s old — daemon may be stuck or stopped.")
+                    report["warnings"].append(f"Daemon state is {round(age)}s old - daemon may be stuck or stopped.")
                 if live.get("consecutive_failures", 0) >= 3:
                     report["warnings"].append(
                         f"{live['consecutive_failures']} consecutive login failures, backoff at {live.get('backoff_seconds')}s."
                     )
-            except Exception:
+            except (ValueError, TypeError, OverflowError):
                 report["warnings"].append("Live daemon state file is corrupt.")
         else:
             report["checks"]["daemon_state"] = None
             if active:
                 report["warnings"].append("Daemon is active but has not written state yet (just started?).")
-    except Exception as e:
+    except OSError as e:
         report["warnings"].append(f"Live state check failed: {e}")
 
     # --- Recent history ---
     try:
         recent = read_recent(get_history_path(), limit=5)
         report["checks"]["recent_attempts"] = recent
-    except Exception:
+    except (OSError, ValueError):
         report["checks"]["recent_attempts"] = []
 
     # --- Output ---

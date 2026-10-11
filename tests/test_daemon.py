@@ -5,13 +5,14 @@ import threading
 import time
 from unittest.mock import patch
 
+import pytest
+
 import camp_fi.daemon
 from camp_fi.config import AppConfig, ProfileConfig
 from camp_fi.daemon_state import DaemonState
 from camp_fi.models import KeepaliveSpec, LoginResult, LoginStatus
 from camp_fi.net.probes import ConnectivityStatus, ProbeResult
 
-import pytest
 
 @pytest.fixture(autouse=True)
 def isolate_paths(tmp_path, monkeypatch):

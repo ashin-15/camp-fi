@@ -1,6 +1,8 @@
 import re
-from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+
 
 class KeepaliveInfo:
     def __init__(self, url: str, interval: int):

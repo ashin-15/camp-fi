@@ -104,6 +104,7 @@ def test_cli_keepalive_set(tmp_path, monkeypatch):
 def test_cli_doctor_all_ok(tmp_path, monkeypatch):
     import json
     import time
+
     from camp_fi.config import AppConfig, ProfileConfig, save_config
     from camp_fi.history import record_event
     from camp_fi.models import LoginResult, LoginStatus
@@ -164,6 +165,7 @@ def test_cli_doctor_all_ok(tmp_path, monkeypatch):
 def test_cli_doctor_json(tmp_path, monkeypatch):
     import json
     import time
+
     from camp_fi.config import AppConfig, ProfileConfig, save_config
     from camp_fi.history import record_event
     from camp_fi.models import LoginResult, LoginStatus
@@ -248,7 +250,7 @@ def test_cli_doctor_keyring_failure(tmp_path, monkeypatch):
 
 def test_cli_doctor_stale_daemon_state(tmp_path, monkeypatch):
     import json
-    import time
+
     from camp_fi.net.probes import ConnectivityStatus, ProbeResult
     monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
     monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)
@@ -293,6 +295,7 @@ def test_cli_doctor_corrupt_daemon_state(tmp_path, monkeypatch):
 def test_cli_doctor_consecutive_failures(tmp_path, monkeypatch):
     import json
     import time
+
     from camp_fi.net.probes import ConnectivityStatus, ProbeResult
     monkeypatch.setattr("camp_fi.paths.get_config_dir", lambda: tmp_path)
     monkeypatch.setattr("camp_fi.paths.get_state_dir", lambda: tmp_path)

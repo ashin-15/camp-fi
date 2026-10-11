@@ -1,16 +1,18 @@
-import httpx
 import logging
 import re
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 from pathlib import Path
-from ..portals.iiitk import IIITKAdapter
+from urllib.parse import urljoin
+
+import httpx
+from bs4 import BeautifulSoup
+
+from ..models import LoginResult, LoginStatus
 from ..portals.fortinet import FortinetAdapter
 from ..portals.generic_form import GenericFormAdapter
-from ..models import LoginResult, LoginStatus, KeepaliveSpec
-from .probes import check_connectivity, ConnectivityStatus
+from ..portals.iiitk import IIITKAdapter
+from ..session_store import load_cookies, save_cookies
 from .http_client import build_http_client
-from ..session_store import save_cookies, load_cookies
+from .probes import ConnectivityStatus, check_connectivity
 
 logger = logging.getLogger("camp-fi")
 
@@ -100,6 +102,6 @@ def execute_login(
         except httpx.RequestError as e:
             logger.error("Network error during login: %s", e)
             return LoginResult(status=LoginStatus.NETWORK_ERROR, message=str(e))
-        except Exception as e:
+        except (httpx.HTTPStatusError, httpx.InvalidURL, OSError, ValueError) as e:
             logger.error("Login failed: %s", e)
             return LoginResult(status=LoginStatus.PROTOCOL_ERROR, message=str(e))

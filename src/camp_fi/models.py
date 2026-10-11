@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any
 
+
 class LoginStatus(Enum):
     SUCCESS = auto()
     UNSUPPORTED_PORTAL = auto()

@@ -1,8 +1,9 @@
-import os
 import json
-import pytest
+
 import httpx
-from camp_fi.session_store import save_cookies, load_cookies, write_private_json
+
+from camp_fi.session_store import load_cookies, save_cookies, write_private_json
+
 
 def test_write_private_json(tmp_path):
     target = tmp_path / "test.json"

@@ -3,6 +3,8 @@ import signal
 import threading
 import time
 
+import httpx
+
 from .config import load_config
 from .credentials import get_password
 from .daemon_state import DaemonState
@@ -82,7 +84,7 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
                         with build_http_client(timeout=5.0, follow_redirects=True) as c:
                             c.get(state.keepalive_url)
                         logger.debug("Keepalive ping successful.")
-                    except Exception as e:
+                    except httpx.HTTPError as e:
                         logger.warning("Keepalive ping failed: %s", e)
                 state.last_keepalive_time = now
             if stop_event.wait(15):

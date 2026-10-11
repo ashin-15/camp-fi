@@ -1,6 +1,9 @@
 from typing import Protocol
+
 import httpx
-from ..models import PreparedLogin, KeepaliveSpec
+
+from ..models import KeepaliveSpec, PreparedLogin
+
 
 class PortalAdapter(Protocol):
     name: str

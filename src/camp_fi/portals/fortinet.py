@@ -1,9 +1,10 @@
-import httpx
-import re
 import logging
-from .generic_form import parse_login_form
+import re
+
+import httpx
+
 from ..keepalive import parse_keepalive
-from ..models import PreparedLogin, KeepaliveSpec
+from ..models import KeepaliveSpec, PreparedLogin
 
 logger = logging.getLogger("camp-fi")
 
@@ -38,8 +39,8 @@ class FortinetAdapter:
         try:
             logger.info("Executing pre-emptive logout to clear stale sessions...")
             client.get(logout_url_with_magic, timeout=3.0)
-        except Exception:
-            pass
+        except httpx.RequestError as exc:
+            logger.warning("Pre-emptive logout failed; continuing with login: %s", exc)
             
         data = {
             "magic": magic,

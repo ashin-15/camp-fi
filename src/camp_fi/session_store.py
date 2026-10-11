@@ -1,10 +1,11 @@
-import os
 import json
 import logging
+import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from dataclasses import dataclass, asdict
+
 import httpx
 
 logger = logging.getLogger("camp-fi")
@@ -74,7 +75,7 @@ def load_cookies(client: httpx.Client, path: Path, default_url: str) -> None:
                     domain = item.get("domain") or httpx.URL(default_url).host
                     path_val = item.get("path") or "/"
                     client.cookies.set(item["name"], str(item["value"]), domain=domain, path=path_val)
-    except Exception as e:
+    except (OSError, ValueError, TypeError, AttributeError, httpx.InvalidURL) as e:
         logger.warning("Failed to load cookies from %s (corrupt/invalid): %s. Discarding cookie file.", path, e)
         try:
             path.unlink(missing_ok=True)

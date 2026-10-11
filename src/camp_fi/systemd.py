@@ -1,7 +1,6 @@
-import os
-import sys
-import subprocess
 import logging
+import subprocess
+import sys
 from pathlib import Path
 
 logger = logging.getLogger("camp-fi")
@@ -83,12 +82,12 @@ def uninstall_service():
     path = get_service_path()
     try:
         _run_systemctl(["stop", "camp-fi.service"])
-    except Exception:
-        pass
+    except (RuntimeError, OSError) as exc:
+        logger.warning("Could not stop camp-fi service during uninstall: %s", exc)
     try:
         _run_systemctl(["disable", "camp-fi.service"])
-    except Exception:
-        pass
+    except (RuntimeError, OSError) as exc:
+        logger.warning("Could not disable camp-fi service during uninstall: %s", exc)
 
     if path.exists():
         path.unlink()
