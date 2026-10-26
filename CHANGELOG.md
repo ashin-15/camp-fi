@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Doctor Diagnostic Command & Live Daemon State Persistence**: Added `camp-fi doctor` for one-shot diagnostics (environment, systemd service liveness, network connectivity, live backoff/retry state, and login history) with `--json` support, plus atomic live state persistence (`daemon_live_state.json`).
 - **Login History**: Added private JSONL history persistence for captive portal detections and login attempts, plus a `camp-fi history` command for recent diagnostics.
+- **Native Android one-shot captive-portal app**: Added the `android/` Kotlin application with secure profile/credential storage, Wi-Fi suggestions, post-connection login events, network-bound portal adapters, bounded retries, history, Compose setup UI, and captive-portal/manual fallbacks.
 
 ### Fixed
 - **Dynamic Config Ingestion & Comprehensive Daemon/Service Logging**: Fixed daemon running with stale configuration by reloading `load_config()` in each loop iteration. Added global CLI logging initialization with `--verbose` support, credential passing logs during captive portal authentication, keyring credential storage/deletion logs, and systemd service lifecycle logs with automated secret redaction.

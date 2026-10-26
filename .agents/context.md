@@ -20,3 +20,6 @@
 5. **Safe Logging**: The `RedactingFormatter` in `logging_config.py` attempts to scrub tokens, but you MUST avoid explicitly logging passwords or raw session tokens in newly added log statements.
 6. **Changelog**: All notable user-facing changes must be documented in `CHANGELOG.md` following the [Keep a Changelog](https://keepachangelog.com/) format.
 7. **Documentation Updates**: Whenever new CLI commands, options, features, or architectural improvements are added, `README.md` MUST be updated alongside the changes to maintain accurate documentation and CLI reference.
+
+## Approved Android plan
+The approved event-driven Android implementation plan is saved in `.agents/android-plan.md`. It covers the one-shot `WifiNetworkSuggestion` connection flow, network-bound portal login, secure storage, background-execution constraints, `wifix2` findings, and the next feasibility-spike step.

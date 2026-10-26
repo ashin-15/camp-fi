@@ -118,6 +118,17 @@ camp-fi service start
 - `camp-fi service restart`: Restart the systemd unit.
 - `camp-fi service uninstall`: Disable, stop, and remove the installed systemd unit.
 
+## Android app
+
+The native Kotlin app in [`android/`](android/) supports Android 10/API 29+ and follows an event-driven one-shot flow:
+
+1. Configure an SSID and captive-portal username/password in the Compose UI.
+2. Credentials and cookies are encrypted with an Android Keystore-backed AES/GCM vault; profile metadata uses DataStore.
+3. Android connects through a `WifiNetworkSuggestion` with app interaction required, then sends the post-connection event.
+4. A short-lived foreground service (or expedited worker when Android blocks a background service start) performs a network-bound login and verification, then stops.
+
+Portal adapter selection and host policy are automatic for the IIITK-focused app. The default mode does not scan continuously, poll, schedule periodic logins, or run keepalives. Unsupported JavaScript-heavy portals can be opened in the approved-host manual WebView fallback. See [`android/README.md`](android/README.md) for build, device testing, and background-execution notes.
+
 ## Development
 To hack on `camp-fi`, set up your virtual environment and run the test suite:
 
