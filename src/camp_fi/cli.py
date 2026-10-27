@@ -253,6 +253,8 @@ def history(limit: int = typer.Option(20, help="Number of recent events to show"
 
 @app.command("status")
 def status():
+    import keyring
+
     from .credentials import get_password
     from .net.probes import check_connectivity
     from .net.ssid import get_current_ssid
@@ -267,11 +269,25 @@ def status():
     typer.echo(f"Network Status: {probe.status.name}")
     typer.echo(f"Config File: {get_config_path()}")
     typer.echo("\nConfigured Profiles:")
+    matched_profile = next(
+        (name for name, profile in config.profiles.items() if ssid != "Disconnected / Unknown" and ssid in profile.ssids),
+        None,
+    )
+    typer.echo(f"Matched Profile: {matched_profile or 'None'}")
     for name, prof in config.profiles.items():
-        has_pass = bool(get_password(name, prof.username)) if prof.username else False
+        try:
+            has_pass = bool(get_password(name, prof.username)) if prof.username else False
+            keyring_status = "available"
+        except (keyring.errors.KeyringError, OSError) as exc:
+            has_pass = False
+            keyring_status = f"unavailable ({exc})"
         cookie_p = get_cookie_path(name)
         cookie_info = "Present" if cookie_p.exists() else "None"
         typer.echo(f"  - {name}: user='{prof.username or 'None'}', pass_stored={has_pass}, cookies={cookie_info}")
+        if prof.username and keyring_status != "available":
+            typer.echo(f"    Keyring: {keyring_status}")
+        if not prof.ssids:
+            typer.echo("    Auto-connect: no SSIDs configured")
 
 @app.command("init")
 def init():
@@ -343,6 +359,13 @@ def _print_doctor_report(report: dict):
         typer.echo("[WARNING] systemd service: inactive (camp-fi service start)")
     else:
         typer.echo(f"[OK] systemd service: {active}")
+    enabled = checks.get("systemd_service_enabled")
+    if enabled is True:
+        typer.echo("[OK] systemd service: enabled for user login")
+    elif enabled is False:
+        typer.echo("[WARNING] systemd service: not enabled (camp-fi service install)")
+    elif enabled is not None:
+        typer.echo(f"[OK] systemd service enablement: {enabled}")
 
     # --- Network ---
     typer.echo("\n--- Network ---")
@@ -422,7 +445,7 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
         get_live_state_path,
         get_state_dir,
     )
-    from .systemd import is_service_active
+    from .systemd import is_service_active, is_service_enabled
 
     report: dict = {"checks": {}, "warnings": []}
 
@@ -456,6 +479,12 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
             report["warnings"].append("systemd service is installed but not running (camp-fi service start).")
         elif active is None:
             report["checks"]["systemd_service_active"] = "n/a (no systemd)"
+        enabled = is_service_enabled()
+        report["checks"]["systemd_service_enabled"] = enabled
+        if enabled is False:
+            report["warnings"].append("systemd service is not enabled for user login (camp-fi service install).")
+        elif enabled is None:
+            report["checks"]["systemd_service_enabled"] = "n/a (no systemd)"
     except (OSError, SubprocessError, UnicodeError) as e:
         active = None
         report["checks"]["systemd_service_active"] = "n/a"
@@ -476,10 +505,17 @@ def doctor(as_json: bool = typer.Option(False, "--json", help="Output machine-re
 
         if matched_profile:
             prof = config.profiles[matched_profile]
-            has_pass = bool(get_password(matched_profile, prof.username)) if prof.username else False
-            report["checks"]["credentials_stored"] = has_pass
-            if not has_pass:
-                report["warnings"].append(f"No stored credentials for matched profile '{matched_profile}'.")
+            try:
+                has_pass = bool(get_password(matched_profile, prof.username)) if prof.username else False
+                report["checks"]["credentials_stored"] = has_pass
+                if not has_pass:
+                    report["warnings"].append(f"No stored credentials for matched profile '{matched_profile}'.")
+            except (keyring.errors.KeyringError, OSError) as e:
+                report["checks"]["credentials_stored"] = None
+                report["warnings"].append(
+                    f"Cannot read credentials for matched profile '{matched_profile}' from the OS keyring: {e}. "
+                    "Ensure the user session's Secret Service is running and available to systemd."
+                )
     except (OSError, ValueError, TypeError, yaml.YAMLError, keyring.errors.KeyringError) as e:
         report["warnings"].append(f"Network state check failed: {e}")
 

@@ -4,6 +4,7 @@ import threading
 import time
 
 import httpx
+import keyring
 
 from .config import load_config
 from .credentials import get_password
@@ -62,7 +63,18 @@ def run_daemon(foreground: bool = False, stop_event: threading.Event | None = No
         state.active_profile = active_profile_name
         profile = config.profiles[active_profile_name]
         logger.debug("Matched profile '%s' for SSID '%s'.", active_profile_name, ssid)
-        password = get_password(active_profile_name, profile.username)
+        try:
+            password = get_password(active_profile_name, profile.username)
+        except (keyring.errors.KeyringError, OSError) as exc:
+            logger.error(
+                "Cannot read credentials for profile '%s' from the OS keyring: %s. "
+                "Ensure the user session's Secret Service is running and available to systemd.",
+                active_profile_name,
+                exc,
+            )
+            if stop_event.wait(60):
+                break
+            continue
         if not password:
             logger.error("No password for profile '%s', user '%s'.", active_profile_name, profile.username)
             if stop_event.wait(60):
